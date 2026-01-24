@@ -4,7 +4,7 @@ A macOS menu bar app that fixes typos and grammar mistakes instantly while prese
 
 ## Features
 
-- **Instant Corrections**: Press `⌘⇧.` (Command + Shift + D) to fix typos in any text field
+- **Instant Corrections**: Press `⌘⇧D` (Command + Shift + D) to fix typos in any text field
 - **Style Preservation**: AI fixes errors while keeping your tone and word choices
 - **Smart Text Selection**: Automatically detects what to fix based on context
 - **Easy Revert**: Press the shortcut again within 3 seconds to undo, or use the history menu
