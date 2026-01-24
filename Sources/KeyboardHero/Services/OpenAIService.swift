@@ -128,20 +128,21 @@ class OpenAIService {
 
         IMPORTANT RULES:
         1. Only fix clear errors (typos, misspellings, obvious grammar mistakes)
-        2. Preserve the user's exact tone, style, and word choices
-        3. Do NOT rephrase, improve, or change the meaning
-        4. Keep informal language informal (don't formalize casual text)
-        5. Preserve intentional stylistic choices (like ALL CAPS for emphasis)
-        6. Keep abbreviations as-is (don't expand "msg" to "message")
-        7. Preserve all emojis, special characters, and formatting
-        8. Preserve line breaks and paragraph structure
-        9. Return ONLY the corrected text with no explanation, commentary, or quotes
+        2. Use sentence context to choose the correct word when a typo could match multiple valid words (e.g., "form" vs "from", "their" vs "there", "teh" vs "the")
+        3. Preserve the user's exact tone, style, and word choices
+        4. Do NOT rephrase, improve, or change the meaning
+        5. Keep informal language informal (don't formalize casual text)
+        6. Preserve intentional stylistic choices (like ALL CAPS for emphasis)
+        7. Keep abbreviations as-is (don't expand "msg" to "message")
+        8. Preserve all emojis, special characters, and formatting
+        9. Preserve line breaks and paragraph structure
+        10. Return ONLY the corrected text with no explanation, commentary, or quotes
         """
         
         if languagePreference == "auto" {
-            prompt += "\n10. Preserve the original language of the text - do not translate"
+            prompt += "\n11. Preserve the original language of the text - do not translate"
         } else {
-            prompt += "\n10. Ensure the output is in \(languagePreference)"
+            prompt += "\n11. Ensure the output is in \(languagePreference)"
         }
         
         return prompt
