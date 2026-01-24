@@ -54,4 +54,4 @@ defaults delete com.keyboardhero.app keyboardShortcut
 - Only select text BEFORE cursor (backward), never after
 
 ## AI Prompt Strategy
-Fix only clear errors, preserve tone/style, don't rephrase, keep informal language, preserve emojis/formatting, return ONLY corrected text.
+Fix only clear errors, use sentence context to disambiguate typos (e.g., "form" vs "from"), preserve tone/style, don't rephrase, keep informal language, preserve emojis/formatting, return ONLY corrected text.
