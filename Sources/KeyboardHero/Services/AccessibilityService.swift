@@ -211,7 +211,7 @@ class AccessibilityService {
             kAXTextFieldRole as String,
             kAXTextAreaRole as String,
             kAXComboBoxRole as String,
-            kAXSearchFieldRole as String
+            "AXSearchField"
         ]
         
         return textRoles.contains(role)

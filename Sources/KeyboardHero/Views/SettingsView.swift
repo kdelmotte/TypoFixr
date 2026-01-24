@@ -47,22 +47,11 @@ struct GeneralSettingsView: View {
                     Text("1000 characters").tag(1000)
                 }
                 .help("Maximum text length before prompting to select specific text")
-                
-                Picker("Language", selection: $appState.languagePreference) {
-                    Text("Auto-detect").tag("auto")
-                    Text("English").tag("English")
-                    Text("French").tag("French")
-                    Text("Spanish").tag("Spanish")
-                    Text("German").tag("German")
-                    Text("Italian").tag("Italian")
-                    Text("Portuguese").tag("Portuguese")
-                }
-                .help("Language for corrections (auto-detect recommended)")
             }
             
             Section {
                 Toggle("Launch at Login", isOn: $launchAtLogin)
-                    .onChange(of: launchAtLogin) { _, newValue in
+                    .onChange(of: launchAtLogin) { newValue in
                         setLaunchAtLogin(newValue)
                     }
                     .onAppear {
@@ -143,13 +132,13 @@ struct ShortcutSettingsView: View {
                         
                         Button("Reset to Default") {
                             appState.keyboardShortcut = KeyboardShortcutConfig(
-                                keyCode: 47,
+                                keyCode: 2, // D key
                                 modifiers: [.command, .shift]
                             )
                         }
                         .disabled(isRecording)
                     }
-                    
+
                     if let error = errorMessage {
                         Text(error)
                             .font(.caption)
@@ -157,9 +146,9 @@ struct ShortcutSettingsView: View {
                     }
                 }
             }
-            
+
             Section {
-                Text("Default: ⌘⇧. (Command + Shift + Period)")
+                Text("Default: ⌘⇧D (Command + Shift + D)")
                     .font(.caption)
                     .foregroundColor(.secondary)
             }
@@ -174,12 +163,14 @@ struct ShortcutRecorderView: View {
     @Binding var config: KeyboardShortcutConfig
     @Binding var isRecording: Bool
     @Binding var errorMessage: String?
-    
+
+    @State private var eventMonitor: Any?
+
     var body: some View {
-        Button(action: { isRecording.toggle() }) {
+        Button(action: { startRecording() }) {
             HStack {
                 if isRecording {
-                    Text("Type shortcut...")
+                    Text("Press shortcut... (Esc to cancel)")
                         .foregroundColor(.secondary)
                 } else {
                     Text(config.displayString)
@@ -197,52 +188,68 @@ struct ShortcutRecorderView: View {
             )
         }
         .buttonStyle(.plain)
-        .onKeyPress { keyPress in
-            guard isRecording else { return .ignored }
-            
-            // Build modifier set
-            var modifiers: Set<KeyboardShortcutConfig.ModifierKey> = []
-            if keyPress.modifiers.contains(.command) { modifiers.insert(.command) }
-            if keyPress.modifiers.contains(.shift) { modifiers.insert(.shift) }
-            if keyPress.modifiers.contains(.option) { modifiers.insert(.option) }
-            if keyPress.modifiers.contains(.control) { modifiers.insert(.control) }
-            
-            // Need at least one modifier
-            guard !modifiers.isEmpty else {
-                errorMessage = "Shortcut must include at least one modifier (⌘, ⇧, ⌥, or ⌃)"
-                return .handled
-            }
-            
-            // Get key code (simplified - in production use Carbon or similar)
-            let keyCode = keyCharToCode(keyPress.characters)
-            
-            // Check if reserved
-            if HotkeyService.isReservedShortcut(keyCode, modifiers: modifiers) {
-                errorMessage = "This shortcut is reserved by the system"
-                return .handled
-            }
-            
-            // Update config
-            config = KeyboardShortcutConfig(keyCode: keyCode, modifiers: modifiers)
-            errorMessage = nil
-            isRecording = false
-            
-            return .handled
+        .onDisappear {
+            stopRecording()
         }
     }
-    
-    private func keyCharToCode(_ char: String) -> UInt32 {
-        // Simplified mapping - in production use a more complete solution
-        let charMap: [String: UInt32] = [
-            "a": 0, "s": 1, "d": 2, "f": 3, "h": 4, "g": 5, "z": 6, "x": 7,
-            "c": 8, "v": 9, "b": 11, "q": 12, "w": 13, "e": 14, "r": 15,
-            "y": 16, "t": 17, "1": 18, "2": 19, "3": 20, "4": 21, "6": 22,
-            "5": 23, "=": 24, "9": 25, "7": 26, "-": 27, "8": 28, "0": 29,
-            "]": 30, "o": 31, "u": 32, "[": 33, "i": 34, "p": 35, "l": 37,
-            "j": 38, "'": 39, "k": 40, ";": 41, "\\": 42, ",": 43, "/": 44,
-            "n": 45, "m": 46, ".": 47
-        ]
-        return charMap[char.lowercased()] ?? 47
+
+    private func startRecording() {
+        guard !isRecording else {
+            stopRecording()
+            return
+        }
+
+        isRecording = true
+        errorMessage = nil
+
+        // Use local event monitor to capture key events
+        eventMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+            handleKeyEvent(event)
+            return nil // Consume the event
+        }
+    }
+
+    private func stopRecording() {
+        isRecording = false
+        if let monitor = eventMonitor {
+            NSEvent.removeMonitor(monitor)
+            eventMonitor = nil
+        }
+    }
+
+    private func handleKeyEvent(_ event: NSEvent) {
+        // Handle Escape to cancel
+        if event.keyCode == 53 { // Escape key
+            stopRecording()
+            return
+        }
+
+        // Build modifier set
+        var modifiers: Set<KeyboardShortcutConfig.ModifierKey> = []
+        if event.modifierFlags.contains(.command) { modifiers.insert(.command) }
+        if event.modifierFlags.contains(.shift) { modifiers.insert(.shift) }
+        if event.modifierFlags.contains(.option) { modifiers.insert(.option) }
+        if event.modifierFlags.contains(.control) { modifiers.insert(.control) }
+
+        // Need at least one modifier
+        guard !modifiers.isEmpty else {
+            errorMessage = "Shortcut must include at least one modifier (⌘, ⇧, ⌥, or ⌃)"
+            return
+        }
+
+        let keyCode = UInt32(event.keyCode)
+
+        // Check if reserved
+        if HotkeyService.isReservedShortcut(keyCode, modifiers: modifiers) {
+            errorMessage = "This shortcut is reserved by the system"
+            stopRecording()
+            return
+        }
+
+        // Update config
+        config = KeyboardShortcutConfig(keyCode: keyCode, modifiers: modifiers)
+        errorMessage = nil
+        stopRecording()
     }
 }
 
@@ -350,7 +357,3 @@ struct AboutView: View {
     }
 }
 
-#Preview {
-    SettingsView()
-        .environmentObject(AppState())
-}

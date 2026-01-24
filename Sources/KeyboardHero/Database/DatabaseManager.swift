@@ -1,30 +1,33 @@
 import Foundation
 import SQLite
 
+// Type alias to avoid conflict with Foundation.Expression (macOS 15+)
+typealias SQLExpression = SQLite.Expression
+
 class DatabaseManager {
     static let shared = DatabaseManager()
-    
+
     private var db: Connection?
     private let deviceId: String
-    
+
     // MARK: - Tables
     private let usageLog = Table("usage_log")
     private let correctionHistory = Table("correction_history")
-    
+
     // MARK: - Usage Log Columns
-    private let id = Expression<Int64>("id")
-    private let deviceIdCol = Expression<String>("device_id")
-    private let timestamp = Expression<Date>("timestamp")
-    private let inputTokens = Expression<Int?>("input_tokens")
-    private let outputTokens = Expression<Int?>("output_tokens")
-    private let appBundleId = Expression<String?>("app_bundle_id")
-    private let success = Expression<Bool>("success")
-    
+    private let id = SQLExpression<Int64>("id")
+    private let deviceIdCol = SQLExpression<String>("device_id")
+    private let timestamp = SQLExpression<Date>("timestamp")
+    private let inputTokens = SQLExpression<Int?>("input_tokens")
+    private let outputTokens = SQLExpression<Int?>("output_tokens")
+    private let appBundleId = SQLExpression<String?>("app_bundle_id")
+    private let success = SQLExpression<Bool>("success")
+
     // MARK: - Correction History Columns
-    private let correctionId = Expression<String>("correction_id")
-    private let originalText = Expression<String>("original_text")
-    private let correctedText = Expression<String>("corrected_text")
-    private let reverted = Expression<Bool>("reverted")
+    private let correctionId = SQLExpression<String>("correction_id")
+    private let originalText = SQLExpression<String>("original_text")
+    private let correctedText = SQLExpression<String>("corrected_text")
+    private let reverted = SQLExpression<Bool>("reverted")
     
     private init() {
         // Get or create device ID
@@ -112,34 +115,36 @@ class DatabaseManager {
     }
     
     func getTotalTokensUsed(since date: Date) -> (input: Int, output: Int) {
+        guard let db = db else { return (0, 0) }
         do {
             let query = usageLog
                 .filter(timestamp >= date)
                 .filter(deviceIdCol == deviceId)
-            
+
             var totalInput = 0
             var totalOutput = 0
-            
-            for row in try db!.prepare(query) {
+
+            for row in try db.prepare(query) {
                 totalInput += row[inputTokens] ?? 0
                 totalOutput += row[outputTokens] ?? 0
             }
-            
+
             return (totalInput, totalOutput)
         } catch {
             print("Failed to get token usage: \(error)")
             return (0, 0)
         }
     }
-    
+
     func getCorrectionCount(since date: Date) -> Int {
+        guard let db = db else { return 0 }
         do {
             let query = usageLog
                 .filter(timestamp >= date)
                 .filter(deviceIdCol == deviceId)
                 .filter(success == true)
-            
-            return try db!.scalar(query.count)
+
+            return try db.scalar(query.count)
         } catch {
             print("Failed to get correction count: \(error)")
             return 0
@@ -173,14 +178,15 @@ class DatabaseManager {
     }
     
     func getRecentCorrections(limit: Int = 10) -> [Correction] {
+        guard let db = db else { return [] }
         do {
             let query = correctionHistory
                 .order(timestamp.desc)
                 .limit(limit)
-            
+
             var corrections: [Correction] = []
-            
-            for row in try db!.prepare(query) {
+
+            for row in try db.prepare(query) {
                 let correction = Correction(
                     id: UUID(uuidString: row[correctionId]) ?? UUID(),
                     timestamp: row[timestamp],
@@ -193,7 +199,7 @@ class DatabaseManager {
                 )
                 corrections.append(correction)
             }
-            
+
             return corrections
         } catch {
             print("Failed to get recent corrections: \(error)")

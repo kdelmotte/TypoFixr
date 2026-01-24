@@ -5,29 +5,20 @@ import Combine
 class AppDelegate: NSObject, NSApplicationDelegate {
     var statusItem: NSStatusItem!
     var popover: NSPopover!
-    var appState: AppState!
-    
+    var appState = AppState()
+
     private var cancellables = Set<AnyCancellable>()
     private var hotkeyService: HotkeyService!
     private var textCorrectionService: TextCorrectionService!
-    
+
     func applicationDidFinishLaunching(_ notification: Notification) {
-        // Initialize app state
-        appState = AppState()
-        
+        // Set activation policy FIRST (menu bar app only)
+        NSApp.setActivationPolicy(.accessory)
+
         // Initialize services
         hotkeyService = HotkeyService(appState: appState)
         textCorrectionService = TextCorrectionService(appState: appState)
-        
-        // Set up menu bar
-        setupMenuBar()
-        
-        // Check accessibility permission
-        checkAccessibilityPermission()
-        
-        // Register hotkey
-        hotkeyService.registerHotkey()
-        
+
         // Subscribe to correction triggers
         appState.$shouldTriggerCorrection
             .filter { $0 }
@@ -36,21 +27,57 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 self?.appState.shouldTriggerCorrection = false
             }
             .store(in: &cancellables)
-        
-        // Show onboarding if first launch or no permission
-        if !appState.hasCompletedOnboarding || !appState.hasAccessibilityPermission {
+
+        // Check if onboarding is needed
+        if !appState.hasCompletedOnboarding {
+            // First launch: show only onboarding, no menu bar yet
             showOnboarding()
+
+            // Watch for onboarding completion
+            appState.$hasCompletedOnboarding
+                .filter { $0 }
+                .first()
+                .sink { [weak self] _ in
+                    self?.onOnboardingCompleted()
+                }
+                .store(in: &cancellables)
+        } else {
+            // Already onboarded: set up menu bar and register hotkey
+            DispatchQueue.main.async { [self] in
+                setupMenuBar()
+                checkAccessibilityPermission()
+                hotkeyService.registerHotkey()
+            }
         }
-        
-        // Hide dock icon (menu bar app only)
-        NSApp.setActivationPolicy(.accessory)
+    }
+
+    private func onOnboardingCompleted() {
+        DispatchQueue.main.async { [self] in
+            // Close onboarding window
+            onboardingWindow?.close()
+
+            // Set up menu bar
+            setupMenuBar()
+            checkAccessibilityPermission()
+
+            // Register hotkey
+            hotkeyService.registerHotkey()
+
+            // Open settings window
+            showSettings()
+        }
     }
     
     private func setupMenuBar() {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-        
+
         if let button = statusItem.button {
-            button.image = NSImage(systemSymbolName: "keyboard", accessibilityDescription: "Keyboard Hero")
+            if let image = NSImage(systemSymbolName: "keyboard", accessibilityDescription: "Keyboard Hero") {
+                button.image = image
+            } else {
+                // Fallback to text if SF Symbol doesn't work
+                button.title = "⌨️"
+            }
             button.action = #selector(togglePopover)
             button.target = self
         }
@@ -118,15 +145,61 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
     
-    private func showOnboarding() {
-        if let window = NSApp.windows.first(where: { $0.identifier?.rawValue == "onboarding" }) {
+    private var onboardingWindow: NSWindow?
+    private var settingsWindow: NSWindow?
+
+    @objc func showSettings() {
+        // Close popover if open
+        popover?.performClose(nil)
+
+        if let window = settingsWindow, window.isVisible {
             window.makeKeyAndOrderFront(nil)
-        } else {
             NSApp.activate(ignoringOtherApps: true)
-            if #available(macOS 13.0, *) {
-                NSApp.openWindow(id: "onboarding")
-            }
+            return
         }
+
+        let settingsView = SettingsView()
+            .environmentObject(appState)
+
+        let hostingController = NSHostingController(rootView: settingsView)
+
+        let window = NSWindow(contentViewController: hostingController)
+        window.identifier = NSUserInterfaceItemIdentifier("settings")
+        window.title = "Keyboard Hero Settings"
+        window.styleMask = [.titled, .closable]
+        window.setContentSize(NSSize(width: 450, height: 380))
+        window.center()
+        window.isReleasedWhenClosed = false
+
+        settingsWindow = window
+
+        NSApp.activate(ignoringOtherApps: true)
+        window.makeKeyAndOrderFront(nil)
+    }
+
+    private func showOnboarding() {
+        if let window = onboardingWindow, window.isVisible {
+            window.makeKeyAndOrderFront(nil)
+            return
+        }
+
+        let onboardingView = OnboardingView()
+            .environmentObject(appState)
+
+        let hostingController = NSHostingController(rootView: onboardingView)
+
+        let window = NSWindow(contentViewController: hostingController)
+        window.identifier = NSUserInterfaceItemIdentifier("onboarding")
+        window.title = "Welcome to Keyboard Hero"
+        window.styleMask = [.titled, .closable]
+        window.setContentSize(NSSize(width: 500, height: 500))
+        window.center()
+        window.isReleasedWhenClosed = false
+
+        onboardingWindow = window
+
+        NSApp.activate(ignoringOtherApps: true)
+        window.makeKeyAndOrderFront(nil)
     }
     
     func requestAccessibilityPermission() {

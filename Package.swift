@@ -10,7 +10,7 @@ let package = Package(
         .executable(name: "KeyboardHero", targets: ["KeyboardHero"])
     ],
     dependencies: [
-        .package(url: "https://github.com/stephencelis/SQLite.swift.git", from: "0.14.1"),
+        .package(url: "https://github.com/stephencelis/SQLite.swift.git", exact: "0.14.1"),
         .package(url: "https://github.com/soffes/HotKey.git", from: "0.2.0")
     ],
     targets: [
@@ -21,9 +21,7 @@ let package = Package(
                 "HotKey"
             ],
             path: "Sources/KeyboardHero",
-            resources: [
-                .process("Resources")
-            ]
+            exclude: ["Info.plist"]
         ),
         .testTarget(
             name: "KeyboardHeroTests",

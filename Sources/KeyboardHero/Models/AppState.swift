@@ -66,9 +66,9 @@ class AppState: ObservableObject {
            let shortcut = try? JSONDecoder().decode(KeyboardShortcutConfig.self, from: data) {
             self.keyboardShortcut = shortcut
         } else {
-            // Default: Cmd + Shift + .
+            // Default: Cmd + Shift + D
             self.keyboardShortcut = KeyboardShortcutConfig(
-                keyCode: 47, // Period key
+                keyCode: 2, // D key
                 modifiers: [.command, .shift]
             )
         }

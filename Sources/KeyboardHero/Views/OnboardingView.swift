@@ -11,14 +11,15 @@ struct OnboardingView: View {
             TabView(selection: $currentPage) {
                 WelcomePage()
                     .tag(0)
-                
+
                 PermissionPage(appState: appState)
                     .tag(1)
-                
+
                 APIKeyPage(appState: appState)
                     .tag(2)
-                
+
                 ReadyPage()
+                    .environmentObject(appState)
                     .tag(3)
             }
             .tabViewStyle(.automatic)
@@ -315,39 +316,41 @@ struct APIKeyPage: View {
 
 // MARK: - Ready Page
 struct ReadyPage: View {
+    @EnvironmentObject var appState: AppState
+
     var body: some View {
         VStack(spacing: 24) {
             Spacer()
-            
+
             Image(systemName: "checkmark.circle.fill")
                 .font(.system(size: 64))
                 .foregroundColor(.green)
-            
+
             Text("You're All Set!")
                 .font(.largeTitle)
                 .fontWeight(.bold)
-            
+
             Text("Keyboard Hero is ready to help you fix typos.")
                 .font(.title3)
                 .foregroundColor(.secondary)
-            
+
             Spacer()
-            
+
             // Quick guide
             VStack(alignment: .leading, spacing: 16) {
                 Text("Quick Guide")
                     .font(.headline)
-                
+
                 HowToRow(number: "1", text: "Type text in any app")
-                HowToRow(number: "2", text: "Press ⌘⇧. (Command + Shift + Period)")
+                HowToRow(number: "2", text: "Press \(appState.keyboardShortcut.displayString) to fix")
                 HowToRow(number: "3", text: "Your text is instantly fixed!")
-                
+
                 Divider()
-                
+
                 HStack {
                     Image(systemName: "arrow.uturn.backward")
                         .foregroundColor(.accentColor)
-                    Text("Press the shortcut again within 3 seconds to revert")
+                    Text("Press the shortcut again within 3 seconds to undo")
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
@@ -356,7 +359,7 @@ struct ReadyPage: View {
             .background(Color.gray.opacity(0.1))
             .cornerRadius(12)
             .padding(.horizontal, 40)
-            
+
             Spacer()
         }
         .padding()
@@ -410,7 +413,3 @@ struct HowToRow: View {
     }
 }
 
-#Preview {
-    OnboardingView()
-        .environmentObject(AppState())
-}

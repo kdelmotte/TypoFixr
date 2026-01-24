@@ -130,7 +130,9 @@ struct MenuBarView: View {
     private var actionsSection: some View {
         VStack(spacing: 0) {
             MenuButton(title: "Settings...", systemImage: "gear") {
-                NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
+                if let appDelegate = NSApp.delegate as? AppDelegate {
+                    appDelegate.showSettings()
+                }
             }
             
             MenuButton(title: "Send Feedback", systemImage: "envelope") {
@@ -161,8 +163,9 @@ struct MenuBarView: View {
 struct CorrectionRow: View {
     let correction: Correction
     @EnvironmentObject var appState: AppState
+    @Environment(\.openURL) var openURL
     @State private var isHovered = false
-    
+
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack {
@@ -170,29 +173,28 @@ struct CorrectionRow: View {
                     Text(correction.truncatedOriginal)
                         .font(.caption)
                         .foregroundColor(.secondary)
-                        .strikethrough(correction.reverted)
-                    
+
                     HStack(spacing: 4) {
                         Image(systemName: "arrow.right")
                             .font(.caption2)
                             .foregroundColor(.accentColor)
-                        
+
                         Text(correction.truncatedCorrected)
                             .font(.caption)
-                            .foregroundColor(correction.reverted ? .secondary : .primary)
+                            .foregroundColor(.primary)
                     }
                 }
-                
+
                 Spacer()
-                
+
                 VStack(alignment: .trailing, spacing: 2) {
                     Text(correction.timeAgo)
                         .font(.caption2)
                         .foregroundColor(.secondary)
-                    
-                    if !correction.reverted && isHovered {
-                        Button("Revert") {
-                            appState.revertCorrection(correction)
+
+                    if isHovered {
+                        Button("Feedback") {
+                            sendFeedback()
                         }
                         .buttonStyle(.borderless)
                         .font(.caption2)
@@ -206,6 +208,28 @@ struct CorrectionRow: View {
         .cornerRadius(4)
         .onHover { hovering in
             isHovered = hovering
+        }
+    }
+
+    private func sendFeedback() {
+        let subject = "Keyboard Hero Correction Feedback"
+        let body = """
+        Original text:
+        \(correction.originalText)
+
+        Keyboard Hero changed it to:
+        \(correction.correctedText)
+
+        What I expected instead:
+        [Please describe what you expected]
+
+        """
+
+        let encodedSubject = subject.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
+        let encodedBody = body.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
+
+        if let url = URL(string: "mailto:feedback@keyboardhero.app?subject=\(encodedSubject)&body=\(encodedBody)") {
+            openURL(url)
         }
     }
 }
@@ -259,7 +283,3 @@ struct StatBadge: View {
     }
 }
 
-#Preview {
-    MenuBarView()
-        .environmentObject(AppState())
-}
