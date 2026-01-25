@@ -136,7 +136,7 @@ struct MenuBarView: View {
             }
             
             MenuButton(title: "Send Feedback", systemImage: "envelope") {
-                if let url = URL(string: "mailto:feedback@typofixr.app?subject=TypoFixr%20Feedback") {
+                if let url = URL(string: "mailto:feedback@typofixr.com?subject=TypoFixr%20Feedback") {
                     openURL(url)
                 }
             }
@@ -228,7 +228,7 @@ struct CorrectionRow: View {
         let encodedSubject = subject.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
         let encodedBody = body.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
 
-        if let url = URL(string: "mailto:feedback@typofixr.app?subject=\(encodedSubject)&body=\(encodedBody)") {
+        if let url = URL(string: "mailto:feedback@typofixr.com?subject=\(encodedSubject)&body=\(encodedBody)") {
             openURL(url)
         }
     }

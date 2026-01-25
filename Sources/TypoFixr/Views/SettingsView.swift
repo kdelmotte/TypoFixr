@@ -347,8 +347,8 @@ struct AboutView: View {
             Spacer()
             
             VStack(spacing: 8) {
-                Link("Privacy Policy", destination: URL(string: "https://typofixr.app/privacy")!)
-                Link("Terms of Service", destination: URL(string: "https://typofixr.app/terms")!)
+                Link("Privacy Policy", destination: URL(string: "https://typofixr.com/privacy")!)
+                Link("Terms of Service", destination: URL(string: "https://typofixr.com/terms")!)
             }
             .font(.caption)
         }
