@@ -56,12 +56,12 @@ class DatabaseManager {
     private func getDatabasePath() -> String {
         let fileManager = FileManager.default
         let appSupport = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
-        let appFolder = appSupport.appendingPathComponent("KeyboardHero")
+        let appFolder = appSupport.appendingPathComponent("TypoFixr")
         
         // Create directory if needed
         try? fileManager.createDirectory(at: appFolder, withIntermediateDirectories: true)
         
-        return appFolder.appendingPathComponent("keyboard_hero.db").path
+        return appFolder.appendingPathComponent("typo_fixr.db").path
     }
     
     private func createTables() throws {

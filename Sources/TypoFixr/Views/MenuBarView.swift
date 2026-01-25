@@ -36,7 +36,7 @@ struct MenuBarView: View {
                 .foregroundColor(.accentColor)
             
             VStack(alignment: .leading, spacing: 2) {
-                Text("Keyboard Hero")
+                Text("TypoFixr")
                     .font(.headline)
                 
                 Text("Press \(appState.keyboardShortcut.displayString) to fix text")
@@ -136,7 +136,7 @@ struct MenuBarView: View {
             }
             
             MenuButton(title: "Send Feedback", systemImage: "envelope") {
-                if let url = URL(string: "mailto:feedback@keyboardhero.app?subject=Keyboard%20Hero%20Feedback") {
+                if let url = URL(string: "mailto:feedback@typofixr.app?subject=TypoFixr%20Feedback") {
                     openURL(url)
                 }
             }
@@ -144,7 +144,7 @@ struct MenuBarView: View {
             Divider()
                 .padding(.vertical, 4)
             
-            MenuButton(title: "Quit Keyboard Hero", systemImage: "power") {
+            MenuButton(title: "Quit TypoFixr", systemImage: "power") {
                 NSApplication.shared.terminate(nil)
             }
         }
@@ -212,12 +212,12 @@ struct CorrectionRow: View {
     }
 
     private func sendFeedback() {
-        let subject = "Keyboard Hero Correction Feedback"
+        let subject = "TypoFixr Correction Feedback"
         let body = """
         Original text:
         \(correction.originalText)
 
-        Keyboard Hero changed it to:
+        TypoFixr changed it to:
         \(correction.correctedText)
 
         What I expected instead:
@@ -228,7 +228,7 @@ struct CorrectionRow: View {
         let encodedSubject = subject.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
         let encodedBody = body.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
 
-        if let url = URL(string: "mailto:feedback@keyboardhero.app?subject=\(encodedSubject)&body=\(encodedBody)") {
+        if let url = URL(string: "mailto:feedback@typofixr.app?subject=\(encodedSubject)&body=\(encodedBody)") {
             openURL(url)
         }
     }

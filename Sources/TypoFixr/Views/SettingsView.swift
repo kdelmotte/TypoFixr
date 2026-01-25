@@ -265,7 +265,7 @@ struct APISettingsView: View {
                     Text("OpenAI API Key")
                         .font(.headline)
                     
-                    Text("Required to use Keyboard Hero. Get your API key from platform.openai.com")
+                    Text("Required to use TypoFixr. Get your API key from platform.openai.com")
                         .font(.caption)
                         .foregroundColor(.secondary)
                     
@@ -330,7 +330,7 @@ struct AboutView: View {
                 .font(.system(size: 48))
                 .foregroundColor(.accentColor)
             
-            Text("Keyboard Hero")
+            Text("TypoFixr")
                 .font(.title)
                 .fontWeight(.bold)
             
@@ -347,8 +347,8 @@ struct AboutView: View {
             Spacer()
             
             VStack(spacing: 8) {
-                Link("Privacy Policy", destination: URL(string: "https://keyboardhero.app/privacy")!)
-                Link("Terms of Service", destination: URL(string: "https://keyboardhero.app/terms")!)
+                Link("Privacy Policy", destination: URL(string: "https://typofixr.app/privacy")!)
+                Link("Terms of Service", destination: URL(string: "https://typofixr.app/terms")!)
             }
             .font(.caption)
         }

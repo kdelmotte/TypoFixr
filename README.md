@@ -1,4 +1,4 @@
-# Keyboard Hero
+# TypoFixr
 
 A macOS menu bar app that fixes typos and grammar mistakes instantly while preserving your unique writing style.
 
@@ -22,7 +22,7 @@ A macOS menu bar app that fixes typos and grammar mistakes instantly while prese
 
 1. **Clone the repository**
    ```bash
-   cd "Keyboard Hero"
+   cd "TypoFixr"
    ```
 
 2. **Build the app**
@@ -32,7 +32,7 @@ A macOS menu bar app that fixes typos and grammar mistakes instantly while prese
 
 3. **Run the app**
    ```bash
-   .build/release/KeyboardHero
+   .build/release/TypoFixr
    ```
 
 ### Using Xcode
@@ -46,7 +46,7 @@ A macOS menu bar app that fixes typos and grammar mistakes instantly while prese
 1. **Grant Accessibility Permission**
    - On first launch, you'll be prompted to grant Accessibility permission
    - Go to System Preferences > Privacy & Security > Accessibility
-   - Enable Keyboard Hero in the list
+   - Enable TypoFixr in the list
 
 2. **Add Your OpenAI API Key**
    - Click the menu bar icon > Settings > API
@@ -67,7 +67,7 @@ A macOS menu bar app that fixes typos and grammar mistakes instantly while prese
 
 ### Smart Text Selection
 
-Keyboard Hero intelligently selects what to fix:
+TypoFixr intelligently selects what to fix:
 
 | Situation | Behavior |
 |-----------|----------|
@@ -102,11 +102,11 @@ Click the menu bar icon > Settings:
 ### Project Structure
 
 ```
-KeyboardHero/
+TypoFixr/
 ├── Package.swift              # Swift Package Manager config
 ├── Sources/
-│   └── KeyboardHero/
-│       ├── KeyboardHeroApp.swift    # App entry point
+│   └── TypoFixr/
+│       ├── TypoFixrApp.swift    # App entry point
 │       ├── AppDelegate.swift        # Menu bar setup
 │       ├── Models/
 │       │   ├── AppState.swift       # App state management
@@ -126,7 +126,7 @@ KeyboardHero/
 │       └── Resources/
 │           └── Info.plist
 └── Tests/
-    └── KeyboardHeroTests/
+    └── TypoFixrTests/
         ├── CorrectionTests.swift
         ├── CorrectionBookmarkTests.swift
         ├── AppStateTests.swift
@@ -150,9 +150,9 @@ swift test
 ### "Permission Required" message
 
 1. Open System Preferences > Privacy & Security > Accessibility
-2. Find Keyboard Hero in the list
+2. Find TypoFixr in the list
 3. Toggle it off and on again
-4. Restart Keyboard Hero
+4. Restart TypoFixr
 
 ### Shortcut not working
 

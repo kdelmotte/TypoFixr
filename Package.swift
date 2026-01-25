@@ -2,12 +2,12 @@
 import PackageDescription
 
 let package = Package(
-    name: "KeyboardHero",
+    name: "TypoFixr",
     platforms: [
         .macOS(.v13)
     ],
     products: [
-        .executable(name: "KeyboardHero", targets: ["KeyboardHero"])
+        .executable(name: "TypoFixr", targets: ["TypoFixr"])
     ],
     dependencies: [
         .package(url: "https://github.com/stephencelis/SQLite.swift.git", exact: "0.14.1"),
@@ -15,18 +15,18 @@ let package = Package(
     ],
     targets: [
         .executableTarget(
-            name: "KeyboardHero",
+            name: "TypoFixr",
             dependencies: [
                 .product(name: "SQLite", package: "SQLite.swift"),
                 "HotKey"
             ],
-            path: "Sources/KeyboardHero",
+            path: "Sources/TypoFixr",
             exclude: ["Info.plist"]
         ),
         .testTarget(
-            name: "KeyboardHeroTests",
-            dependencies: ["KeyboardHero"],
-            path: "Tests/KeyboardHeroTests"
+            name: "TypoFixrTests",
+            dependencies: ["TypoFixr"],
+            path: "Tests/TypoFixrTests"
         )
     ]
 )

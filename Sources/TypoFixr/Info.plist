@@ -5,15 +5,15 @@
     <key>CFBundleDevelopmentRegion</key>
     <string>en</string>
     <key>CFBundleExecutable</key>
-    <string>KeyboardHero</string>
+    <string>TypoFixr</string>
     <key>CFBundleIconFile</key>
     <string>AppIcon</string>
     <key>CFBundleIdentifier</key>
-    <string>com.keyboardhero.app</string>
+    <string>com.typofixr.app</string>
     <key>CFBundleInfoDictionaryVersion</key>
     <string>6.0</string>
     <key>CFBundleName</key>
-    <string>Keyboard Hero</string>
+    <string>TypoFixr</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleShortVersionString</key>
@@ -27,8 +27,8 @@
     <key>NSHighResolutionCapable</key>
     <true/>
     <key>NSHumanReadableCopyright</key>
-    <string>Copyright © 2026 Keyboard Hero. All rights reserved.</string>
+    <string>Copyright © 2026 TypoFixr. All rights reserved.</string>
     <key>NSAccessibilityUsageDescription</key>
-    <string>Keyboard Hero needs Accessibility permission to read and fix text in your focused text field when you trigger a correction. We only access text when you press the keyboard shortcut, and we do not store any of your text.</string>
+    <string>TypoFixr needs Accessibility permission to read and fix text in your focused text field when you trigger a correction. We only access text when you press the keyboard shortcut, and we do not store any of your text.</string>
 </dict>
 </plist>

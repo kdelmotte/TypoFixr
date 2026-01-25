@@ -1,4 +1,4 @@
-# Keyboard Hero
+# TypoFixr
 
 macOS menu bar app that fixes typos/grammar while preserving writing style. Uses OpenAI GPT-4o-mini with auto-detected language.
 
@@ -9,8 +9,8 @@ macOS menu bar app that fixes typos/grammar while preserving writing style. Uses
 
 ## Structure
 ```
-Sources/KeyboardHero/
-├── KeyboardHeroApp.swift      # @main entry, Settings scene
+Sources/TypoFixr/
+├── TypoFixrApp.swift      # @main entry, Settings scene
 ├── AppDelegate.swift          # Menu bar, windows, state coordination
 ├── Models/                    # AppState, Correction, CorrectionBookmark
 ├── Services/                  # AccessibilityService, OpenAIService, HotkeyService, TextCorrectionService
@@ -38,11 +38,11 @@ Sources/KeyboardHero/
 ## Commands
 ```bash
 swift build -c release                    # Build
-pkill -f "KeyboardHero"; cp .build/release/KeyboardHero ~/Applications/KeyboardHero.app/Contents/MacOS/; codesign --force --deep --sign - ~/Applications/KeyboardHero.app; open ~/Applications/KeyboardHero.app  # Deploy
+pkill -f "TypoFixr"; cp .build/release/TypoFixr ~/Applications/TypoFixr.app/Contents/MacOS/; codesign --force --deep --sign - ~/Applications/TypoFixr.app; open ~/Applications/TypoFixr.app  # Deploy
 
 # Reset for testing
-defaults write com.keyboardhero.app hasCompletedOnboarding -bool false
-defaults delete com.keyboardhero.app keyboardShortcut
+defaults write com.typofixr.app hasCompletedOnboarding -bool false
+defaults delete com.typofixr.app keyboardShortcut
 ```
 
 ## Gotchas

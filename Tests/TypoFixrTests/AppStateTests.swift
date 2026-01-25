@@ -1,5 +1,5 @@
 import XCTest
-@testable import KeyboardHero
+@testable import TypoFixr
 
 final class AppStateTests: XCTestCase {
     

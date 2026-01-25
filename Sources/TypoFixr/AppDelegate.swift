@@ -72,7 +72,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
 
         if let button = statusItem.button {
-            if let image = NSImage(systemSymbolName: "keyboard", accessibilityDescription: "Keyboard Hero") {
+            if let image = NSImage(systemSymbolName: "keyboard", accessibilityDescription: "TypoFixr") {
                 button.image = image
             } else {
                 // Fallback to text if SF Symbol doesn't work
@@ -132,7 +132,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         } else {
             // Normal state
             let config = NSImage.SymbolConfiguration(pointSize: 16, weight: .medium)
-            button.image = NSImage(systemSymbolName: "keyboard", accessibilityDescription: "Keyboard Hero")?.withSymbolConfiguration(config)
+            button.image = NSImage(systemSymbolName: "keyboard", accessibilityDescription: "TypoFixr")?.withSymbolConfiguration(config)
         }
     }
     
@@ -165,7 +165,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         let window = NSWindow(contentViewController: hostingController)
         window.identifier = NSUserInterfaceItemIdentifier("settings")
-        window.title = "Keyboard Hero Settings"
+        window.title = "TypoFixr Settings"
         window.styleMask = [.titled, .closable]
         window.setContentSize(NSSize(width: 450, height: 380))
         window.center()
@@ -190,7 +190,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         let window = NSWindow(contentViewController: hostingController)
         window.identifier = NSUserInterfaceItemIdentifier("onboarding")
-        window.title = "Welcome to Keyboard Hero"
+        window.title = "Welcome to TypoFixr"
         window.styleMask = [.titled, .closable]
         window.setContentSize(NSSize(width: 500, height: 500))
         window.center()

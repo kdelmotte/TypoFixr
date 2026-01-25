@@ -97,7 +97,7 @@ struct WelcomePage: View {
                 .font(.system(size: 64))
                 .foregroundColor(.accentColor)
             
-            Text("Welcome to Keyboard Hero")
+            Text("Welcome to TypoFixr")
                 .font(.largeTitle)
                 .fontWeight(.bold)
             
@@ -140,7 +140,7 @@ struct PermissionPage: View {
                 .fontWeight(.bold)
             
             VStack(alignment: .leading, spacing: 16) {
-                Text("Keyboard Hero needs Accessibility permission to:")
+                Text("TypoFixr needs Accessibility permission to:")
                     .fontWeight(.medium)
                 
                 VStack(alignment: .leading, spacing: 8) {
@@ -193,7 +193,7 @@ struct PermissionPage: View {
                     .controlSize(.large)
                     .padding(.horizontal, 40)
                     
-                    Text("Click the button above, then enable Keyboard Hero in the list")
+                    Text("Click the button above, then enable TypoFixr in the list")
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
@@ -250,7 +250,7 @@ struct APIKeyPage: View {
                 .font(.title)
                 .fontWeight(.bold)
             
-            Text("Keyboard Hero uses OpenAI to intelligently fix your text.\nYou'll need an API key to continue.")
+            Text("TypoFixr uses OpenAI to intelligently fix your text.\nYou'll need an API key to continue.")
                 .font(.body)
                 .multilineTextAlignment(.center)
                 .foregroundColor(.secondary)
@@ -330,7 +330,7 @@ struct ReadyPage: View {
                 .font(.largeTitle)
                 .fontWeight(.bold)
 
-            Text("Keyboard Hero is ready to help you fix typos.")
+            Text("TypoFixr is ready to help you fix typos.")
                 .font(.title3)
                 .foregroundColor(.secondary)
 

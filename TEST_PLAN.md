@@ -1,4 +1,4 @@
-# Keyboard Hero - Test Plan (TDD)
+# TypoFixr - Test Plan (TDD)
 
 This document defines acceptance criteria for all MVP features. Each test should pass before the feature is considered complete.
 
