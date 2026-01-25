@@ -28,6 +28,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             }
             .store(in: &cancellables)
 
+        // Subscribe to icon state changes
+        appState.$iconState
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in
+                self?.updateMenuBarIcon()
+            }
+            .store(in: &cancellables)
+
         // Check if onboarding is needed
         if !appState.hasCompletedOnboarding {
             // First launch: show only onboarding, no menu bar yet
@@ -109,29 +117,28 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private func checkAccessibilityPermission() {
         let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: false]
         appState.hasAccessibilityPermission = AXIsProcessTrustedWithOptions(options as CFDictionary)
-        
+
         // Update icon based on permission status
-        updateMenuBarIcon()
+        if !appState.hasAccessibilityPermission {
+            appState.setIconState(.noPermission)
+        }
     }
     
     func updateMenuBarIcon() {
         guard let button = statusItem?.button else { return }
-        
-        if appState.isProcessing {
-            // Show loading indicator
-            let config = NSImage.SymbolConfiguration(pointSize: 16, weight: .medium)
+
+        let config = NSImage.SymbolConfiguration(pointSize: 16, weight: .medium)
+
+        switch appState.iconState {
+        case .processing:
             button.image = NSImage(systemSymbolName: "arrow.trianglehead.2.clockwise.rotate.90", accessibilityDescription: "Processing")?.withSymbolConfiguration(config)
-        } else if !appState.hasAccessibilityPermission {
-            // Show warning
-            let config = NSImage.SymbolConfiguration(pointSize: 16, weight: .medium)
+        case .success:
+            button.image = NSImage(systemSymbolName: "checkmark.circle.fill", accessibilityDescription: "Success")?.withSymbolConfiguration(config)
+        case .error:
+            button.image = NSImage(systemSymbolName: "xmark.circle.fill", accessibilityDescription: "Error")?.withSymbolConfiguration(config)
+        case .noPermission:
             button.image = NSImage(systemSymbolName: "keyboard.badge.exclamationmark", accessibilityDescription: "Permission Required")?.withSymbolConfiguration(config)
-        } else if appState.lastError != nil {
-            // Show error state
-            let config = NSImage.SymbolConfiguration(pointSize: 16, weight: .medium)
-            button.image = NSImage(systemSymbolName: "keyboard.badge.ellipsis", accessibilityDescription: "Error")?.withSymbolConfiguration(config)
-        } else {
-            // Normal state
-            let config = NSImage.SymbolConfiguration(pointSize: 16, weight: .medium)
+        case .normal:
             button.image = NSImage(systemSymbolName: "keyboard", accessibilityDescription: "TypoFixr")?.withSymbolConfiguration(config)
         }
     }
@@ -139,9 +146,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private func triggerCorrection() {
         Task {
             await textCorrectionService.performCorrection()
-            await MainActor.run {
-                updateMenuBarIcon()
-            }
         }
     }
     
@@ -205,17 +209,17 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     func requestAccessibilityPermission() {
         let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true]
         _ = AXIsProcessTrustedWithOptions(options as CFDictionary)
-        
+
         // Poll for permission granted
         Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] timer in
             let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: false]
             let trusted = AXIsProcessTrustedWithOptions(options as CFDictionary)
-            
+
             if trusted {
                 timer.invalidate()
                 DispatchQueue.main.async {
                     self?.appState.hasAccessibilityPermission = true
-                    self?.updateMenuBarIcon()
+                    self?.appState.setIconState(.normal)
                 }
             }
         }

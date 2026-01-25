@@ -72,11 +72,10 @@ This document defines acceptance criteria for all MVP features. Each test should
 | TC-3.1.2 | No revert after window | Fix text, wait 4s, press shortcut | New correction attempted |
 | TC-3.1.3 | Toggle back and forth | Fix → revert → fix (all <3s) | Toggles correctly |
 
-### 3.2 History-Based Revert
+### 3.2 History Management
 | ID | Test Case | Input | Expected Output |
 |----|-----------|-------|-----------------|
 | TC-3.2.1 | History stores corrections | Make 3 corrections | All 3 appear in menu dropdown |
-| TC-3.2.2 | Revert from history | Click revert on 2nd item | That specific text restored |
 | TC-3.2.3 | History limit respected | Make 15 corrections | Only last 10 stored |
 | TC-3.2.4 | History persists across sessions | Make corrections, quit, relaunch | History still visible |
 

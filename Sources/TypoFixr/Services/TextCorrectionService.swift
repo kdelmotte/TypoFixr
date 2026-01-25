@@ -33,9 +33,13 @@ class TextCorrectionService {
         // Check accessibility permission
         guard appState.hasAccessibilityPermission else {
             appState.lastError = "Accessibility permission required"
+            appState.setIconState(.noPermission)
             showNotification(title: "Permission Required", message: "Please grant Accessibility permission in System Preferences.")
             return
         }
+
+        // Show processing state
+        appState.setIconState(.processing)
 
         // Get current text field - if this fails, try clipboard fallback
         guard let textFieldInfo = accessibilityService.getCurrentTextField() else {
@@ -71,15 +75,17 @@ class TextCorrectionService {
         // Handle too long text
         if capturedText.strategy == .tooLong {
             appState.lastError = "Text too long"
+            appState.setIconState(.error, autoReset: true)
             showNotification(
                 title: "Text Too Long",
                 message: "Please select the specific text you want to fix (limit: \(appState.characterLimit) characters)."
             )
             return
         }
-        
+
         // Handle empty text
         if capturedText.isEmpty {
+            appState.setIconState(.success, autoReset: true)
             showNotification(title: "No Text", message: "No text to fix.")
             return
         }
@@ -99,6 +105,7 @@ class TextCorrectionService {
             // Check if text actually changed
             if result.correctedText == capturedText.text {
                 appState.isProcessing = false
+                appState.setIconState(.success, autoReset: true)
                 showNotification(title: "No Changes", message: "Your text looks good!")
                 return
             }
@@ -122,7 +129,7 @@ class TextCorrectionService {
                     strategy: capturedText.strategy,
                     timestamp: Date()
                 )
-                
+
                 // Create correction record
                 let correction = Correction(
                     originalText: capturedText.text,
@@ -131,11 +138,12 @@ class TextCorrectionService {
                     inputTokens: result.inputTokens,
                     outputTokens: result.outputTokens
                 )
-                
+
                 // Update state
                 appState.addCorrection(correction)
 
-                // Show success notification
+                // Show success icon and notification
+                appState.setIconState(.success, autoReset: true)
                 showNotification(title: "Fixed!", message: "Your text has been corrected.")
 
                 // Update bookmark
@@ -150,8 +158,9 @@ class TextCorrectionService {
                 
             } else {
                 appState.lastError = "Could not replace text"
+                appState.setIconState(.error, autoReset: true)
                 showNotification(title: "Error", message: "Could not replace the text. Try selecting the text first.")
-                
+
                 // Log failed attempt
                 DatabaseManager.shared.logUsage(
                     inputTokenCount: result.inputTokens,
@@ -160,11 +169,12 @@ class TextCorrectionService {
                     wasSuccessful: false
                 )
             }
-            
+
         } catch let error as OpenAIService.OpenAIError {
             appState.lastError = error.localizedDescription
+            appState.setIconState(.error, autoReset: true)
             showNotification(title: "Error", message: error.localizedDescription ?? "An error occurred")
-            
+
             // Log failed attempt
             DatabaseManager.shared.logUsage(
                 inputTokenCount: nil,
@@ -174,8 +184,9 @@ class TextCorrectionService {
             )
         } catch {
             appState.lastError = error.localizedDescription
+            appState.setIconState(.error, autoReset: true)
             showNotification(title: "Error", message: "An unexpected error occurred.")
-            
+
             DatabaseManager.shared.logUsage(
                 inputTokenCount: nil,
                 outputTokenCount: nil,
@@ -183,7 +194,7 @@ class TextCorrectionService {
                 wasSuccessful: false
             )
         }
-        
+
         appState.isProcessing = false
     }
     
@@ -197,34 +208,22 @@ class TextCorrectionService {
             startIndex: lastInfo.startIndex,
             strategy: lastInfo.strategy
         )
-        
+
         if success {
             // Mark last correction as reverted
             if let lastCorrection = appState.correctionHistory.first {
                 appState.revertCorrection(lastCorrection)
             }
-            
+
             // Clear revert state
             lastCorrectionInfo = nil
             appState.canToggleRevert = false
-            
+
+            appState.setIconState(.success, autoReset: true)
             showNotification(title: "Reverted", message: "Text restored to original.")
         } else {
+            appState.setIconState(.error, autoReset: true)
             showNotification(title: "Error", message: "Could not revert. Try using Cmd+Z.")
-        }
-    }
-    
-    func revertFromHistory(_ correction: Correction) async {
-        // This requires the text field to still be focused on the same content
-        // For simplicity, we'll just notify the user
-        // In a production app, we'd need to track more state
-        
-        await MainActor.run {
-            appState.revertCorrection(correction)
-            showNotification(
-                title: "Marked as Reverted",
-                message: "Use Cmd+Z in the app to undo, or copy the original text from history."
-            )
         }
     }
     
@@ -254,6 +253,7 @@ class TextCorrectionService {
 
         appState.isProcessing = true
         appState.lastError = nil
+        appState.setIconState(.processing)
 
         // Step 1: Always check for existing selection first (works in all apps)
         var selectionResult = await checkExistingSelection(pasteboard: pasteboard, characterLimit: characterLimit)
@@ -285,6 +285,7 @@ class TextCorrectionService {
 
         case .tooLong(let selected):
             appState.isProcessing = false
+            appState.setIconState(.error, autoReset: true)
             restoreClipboard(pasteboard: pasteboard, savedContent: savedClipboard)
             showNotification(
                 title: "Text Too Long",
@@ -294,6 +295,7 @@ class TextCorrectionService {
 
         case .noSelection:
             appState.isProcessing = false
+            appState.setIconState(.error, autoReset: true)
             restoreClipboard(pasteboard: pasteboard, savedContent: savedClipboard)
             showNotification(
                 title: "Select Some Text",
@@ -305,6 +307,7 @@ class TextCorrectionService {
         // Verify we have text
         guard !textToCorrect.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             appState.isProcessing = false
+            appState.setIconState(.error, autoReset: true)
             restoreClipboard(pasteboard: pasteboard, savedContent: savedClipboard)
             showNotification(
                 title: "Select Some Text",
@@ -324,6 +327,7 @@ class TextCorrectionService {
             // Check if text actually changed
             if result.correctedText == textToCorrect {
                 appState.isProcessing = false
+                appState.setIconState(.success, autoReset: true)
                 restoreClipboard(pasteboard: pasteboard, savedContent: savedClipboard)
                 showNotification(title: "No Changes", message: "Your text looks good!")
                 return
@@ -353,15 +357,18 @@ class TextCorrectionService {
 
             appState.addCorrection(correction)
 
-            // Show success notification
+            // Show success icon and notification
+            appState.setIconState(.success, autoReset: true)
             showNotification(title: "Fixed!", message: "Your text has been corrected.")
 
         } catch let error as OpenAIService.OpenAIError {
             appState.lastError = error.localizedDescription
+            appState.setIconState(.error, autoReset: true)
             showNotification(title: "Error", message: error.localizedDescription)
             restoreClipboard(pasteboard: pasteboard, savedContent: savedClipboard)
         } catch {
             appState.lastError = error.localizedDescription
+            appState.setIconState(.error, autoReset: true)
             showNotification(title: "Error", message: "An unexpected error occurred.")
             restoreClipboard(pasteboard: pasteboard, savedContent: savedClipboard)
         }

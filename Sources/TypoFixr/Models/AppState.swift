@@ -2,6 +2,15 @@ import Foundation
 import SwiftUI
 import Combine
 
+// MARK: - Menu Bar Icon State
+enum MenuBarIconState {
+    case normal
+    case processing
+    case success
+    case error
+    case noPermission
+}
+
 class AppState: ObservableObject {
     // MARK: - Permission State
     @Published var hasAccessibilityPermission: Bool = false
@@ -15,6 +24,8 @@ class AppState: ObservableObject {
     @Published var isProcessing: Bool = false
     @Published var shouldTriggerCorrection: Bool = false
     @Published var lastError: String? = nil
+    @Published var iconState: MenuBarIconState = .normal
+    private var iconResetTimer: Timer?
     
     // MARK: - Correction History
     @Published var correctionHistory: [Correction] = []
@@ -111,11 +122,25 @@ class AppState: ObservableObject {
     private func startRevertTimer() {
         lastCorrectionTime = Date()
         canToggleRevert = true
-        
+
         revertTimer?.invalidate()
         revertTimer = Timer.scheduledTimer(withTimeInterval: 3.0, repeats: false) { [weak self] _ in
             DispatchQueue.main.async {
                 self?.canToggleRevert = false
+            }
+        }
+    }
+
+    // MARK: - Icon State Management
+    func setIconState(_ state: MenuBarIconState, autoReset: Bool = false, duration: TimeInterval = 3.0) {
+        iconResetTimer?.invalidate()
+        iconState = state
+
+        if autoReset && state != .normal && state != .processing && state != .noPermission {
+            iconResetTimer = Timer.scheduledTimer(withTimeInterval: duration, repeats: false) { [weak self] _ in
+                DispatchQueue.main.async {
+                    self?.iconState = .normal
+                }
             }
         }
     }

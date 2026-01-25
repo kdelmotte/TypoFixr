@@ -84,21 +84,6 @@ final class AppStateTests: XCTestCase {
         XCTAssertTrue(appState.canToggleRevert)
     }
     
-    func testRevertCorrection() {
-        // TC-3.2.2: Revert from history
-        let correction = Correction(
-            originalText: "test",
-            correctedText: "TEST"
-        )
-        
-        appState.addCorrection(correction)
-        appState.revertCorrection(correction)
-        
-        // Find the correction in history and check it's marked as reverted
-        let revertedCorrection = appState.correctionHistory.first(where: { $0.id == correction.id })
-        XCTAssertTrue(revertedCorrection?.reverted ?? false)
-    }
-    
     // MARK: - Bookmark Management Tests
     
     func testBookmarkStorage() {
