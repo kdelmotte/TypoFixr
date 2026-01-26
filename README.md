@@ -10,6 +10,9 @@ A macOS menu bar app that understands context and fixes your typos and grammar m
 - **Easy Revert**: Press the shortcut again within 3 seconds to undo, or use the history menu
 - **Works Everywhere**: Compatible with most macOS apps (Notes, Mail, Slack, Chrome, etc.)
 - **Multi-language**: Supports 50+ languages with auto-detection
+- **Security Protections**: Detects prompt injection attempts and warns about sensitive data
+- **Rate Limiting**: Configurable limits to prevent accidental overuse
+- **Spending Cap**: Set monthly token limits to control API costs
 
 ## Requirements
 
@@ -54,7 +57,7 @@ A macOS menu bar app that understands context and fixes your typos and grammar m
 
 3. **Start Using**
    - Type text in any app
-   - Press `⌘⇧.` to fix typos
+   - Press `⌘⇧D` to fix typos
    - That's it!
 
 ## Usage
@@ -62,7 +65,7 @@ A macOS menu bar app that understands context and fixes your typos and grammar m
 ### Basic Usage
 
 1. Type text in any text field (Notes, Mail, Slack, etc.)
-2. Press `⌘⇧.` (or your custom shortcut)
+2. Press `⌘⇧D` (or your custom shortcut)
 3. Your text is instantly corrected!
 
 ### Smart Text Selection
@@ -73,7 +76,7 @@ TypoFixr intelligently selects what to fix:
 |-----------|----------|
 | Text is selected | Only selected text is sent for correction |
 | Same field as last fix | Only text typed since last fix is sent |
-| Text > 500 characters | You're prompted to select specific text |
+| Text > 1000 characters | You're prompted to select specific text |
 | Otherwise | Entire text field is sent |
 
 ### Reverting Changes
@@ -86,16 +89,54 @@ TypoFixr intelligently selects what to fix:
 
 Click the menu bar icon > Settings:
 
-- **Shortcut**: Change the keyboard shortcut
-- **Character Limit**: Adjust the max text length (300-1000)
-- **Language**: Force a specific language or use auto-detect
+**General Tab:**
+- **Character Limit**: Adjust the max text length (300-1000, default 1000)
+- **Launch at Login**: Start TypoFixr when you log in
+
+**Shortcut Tab:**
+- **Keyboard Shortcut**: Change the trigger shortcut (default `⌘⇧D`)
+
+**API Tab:**
+- **API Key**: Enter your OpenAI API key
+
+**Security Tab:**
+- **Security Warnings**: Toggle warnings for sensitive data and prompt injections
+- **Rate Limiting**: Set max corrections per minute (5-30) and per hour (20-500)
+- **Spending Cap**: Enable and set monthly token limits
+- **Clear History**: Remove all correction history
+
+## Security
+
+TypoFixr includes multiple layers of security:
+
+### Pre-flight Checks
+Before sending text to OpenAI, TypoFixr scans for:
+- **Prompt Injection Attempts**: Detects patterns like "ignore previous instructions"
+- **Sensitive Data**: Warns about credit card numbers, SSNs, passwords, API keys, emails, and phone numbers
+
+When detected, you'll see a warning and can choose to proceed or cancel.
+
+### Output Validation
+AI responses are validated for:
+- **Suspicious Patterns**: Script tags, shell commands, JavaScript URLs
+- **AI Refusals**: Detects when the AI declines to process text
+- **Length Limits**: Blocks unexpectedly long responses
+- **Similarity Checks**: Ensures output is similar to input (typo fixes, not rewrites)
+
+### Rate Limiting
+Prevents accidental overuse with configurable limits:
+- Per-minute limits (default: 15)
+- Per-hour limits (default: 100)
+- Monthly token spending cap (optional)
 
 ## Privacy
 
 - **User-triggered only**: Text is only accessed when you press the shortcut
 - **Pass-through**: Text is sent to OpenAI, corrected, and immediately discarded
-- **No storage**: We do not store, log, or retain any of your text
-- **Local tracking**: Usage statistics are stored locally on your device only
+- **Local storage**: Correction history is stored locally in SQLite
+- **Secure key storage**: Your API key is stored in macOS Keychain
+- **Optional encryption**: Database encryption available (disabled by default)
+- **Clear anytime**: Delete all history from Settings > Security
 
 ## Development
 
@@ -103,35 +144,39 @@ Click the menu bar icon > Settings:
 
 ```
 TypoFixr/
-├── Package.swift              # Swift Package Manager config
+├── Package.swift                 # Swift Package Manager config
 ├── Sources/
 │   └── TypoFixr/
-│       ├── TypoFixrApp.swift    # App entry point
-│       ├── AppDelegate.swift        # Menu bar setup
+│       ├── TypoFixrApp.swift     # App entry point
+│       ├── AppDelegate.swift     # Menu bar setup
 │       ├── Models/
-│       │   ├── AppState.swift       # App state management
-│       │   ├── Correction.swift     # Correction model
+│       │   ├── AppState.swift    # App state management
+│       │   ├── Correction.swift  # Correction model
 │       │   └── CorrectionBookmark.swift
 │       ├── Services/
-│       │   ├── AccessibilityService.swift  # Text capture/replace
-│       │   ├── OpenAIService.swift         # AI integration
-│       │   ├── HotkeyService.swift         # Keyboard shortcuts
-│       │   └── TextCorrectionService.swift # Main correction logic
+│       │   ├── AccessibilityService.swift   # Text capture/replace
+│       │   ├── OpenAIService.swift          # AI integration
+│       │   ├── HotkeyService.swift          # Keyboard shortcuts
+│       │   ├── TextCorrectionService.swift  # Main correction logic
+│       │   ├── SecurityService.swift        # Security checks
+│       │   └── HUDService.swift             # HUD notifications
 │       ├── Database/
-│       │   └── DatabaseManager.swift       # SQLite storage
-│       ├── Views/
-│       │   ├── MenuBarView.swift           # Dropdown menu
-│       │   ├── SettingsView.swift          # Settings window
-│       │   └── OnboardingView.swift        # First-run experience
-│       └── Resources/
-│           └── Info.plist
+│       │   └── DatabaseManager.swift        # SQLite storage
+│       └── Views/
+│           ├── MenuBarView.swift            # Dropdown menu
+│           ├── SettingsView.swift           # Settings window
+│           ├── OnboardingView.swift         # First-run experience
+│           └── HUDView.swift                # HUD overlay
 └── Tests/
     └── TypoFixrTests/
         ├── CorrectionTests.swift
         ├── CorrectionBookmarkTests.swift
         ├── AppStateTests.swift
         ├── KeyboardShortcutTests.swift
-        └── CaptureStrategyTests.swift
+        ├── CaptureStrategyTests.swift
+        ├── SecurityTests.swift
+        ├── HUDViewTests.swift
+        └── WhitespaceNormalizationTests.swift
 ```
 
 ### Running Tests
@@ -171,12 +216,27 @@ swift test
 2. Check your OpenAI account has available credits
 3. Ensure you have internet connectivity
 
+### "Response differed too much" error
+
+This happens when the AI returns something very different from your input. This is a security feature. Try:
+1. Selecting a smaller portion of text
+2. Checking if your text contains unusual formatting
+
+### Security warnings
+
+If you see warnings about sensitive data:
+1. Review the flagged content
+2. Choose "Proceed" if you're sure it's safe
+3. Or "Cancel" to keep your original text
+
 ## Cost Estimation
 
 Using OpenAI's gpt-4o-mini model:
 - ~$0.15 per 1M input tokens
 - ~$0.60 per 1M output tokens
 - **Typical usage**: ~$0.50/month for 500 corrections
+
+Use the **Spending Cap** feature in Settings > Security to set monthly limits and monitor usage.
 
 ## License
 
@@ -187,6 +247,15 @@ MIT License - see LICENSE file for details.
 Contributions are welcome! Please read CONTRIBUTING.md for guidelines.
 
 ## Changelog
+
+### v1.1.0
+- Added security protections (prompt injection detection, sensitive data warnings)
+- Added rate limiting (per-minute, per-hour, monthly token limits)
+- Added output validation (similarity checks, suspicious pattern detection)
+- Added HUD notifications for correction status
+- Improved character-level similarity algorithm for better typo detection
+- Fixed false positives in AI refusal detection for contractions
+- Default character limit increased to 1000
 
 ### v1.0.0
 - Initial release
