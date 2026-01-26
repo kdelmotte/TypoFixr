@@ -1,6 +1,6 @@
 # TypoFixr
 
-A macOS menu bar app that fixes typos and grammar mistakes instantly while preserving your unique writing style.
+A macOS menu bar app that understands context and fixes your typos and grammar mistakes instantly, while preserving your unique writing style.
 
 ## Features
 
