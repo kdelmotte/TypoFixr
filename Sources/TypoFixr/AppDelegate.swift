@@ -19,6 +19,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         hotkeyService = HotkeyService(appState: appState)
         textCorrectionService = TextCorrectionService(appState: appState)
 
+        // Listen for show settings notification
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(showSettings),
+            name: NSNotification.Name("ShowSettings"),
+            object: nil
+        )
+
         // Subscribe to correction triggers
         appState.$shouldTriggerCorrection
             .filter { $0 }
@@ -153,32 +161,32 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var settingsWindow: NSWindow?
 
     @objc func showSettings() {
-        // Close popover if open
+        // Close popover first
         popover?.performClose(nil)
 
-        if let window = settingsWindow, window.isVisible {
-            window.makeKeyAndOrderFront(nil)
+        // Small delay to let popover close
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { [self] in
+            // Close existing settings window if any
+            settingsWindow?.close()
+            settingsWindow = nil
+
+            let settingsView = SettingsView()
+                .environmentObject(appState)
+
+            let hostingController = NSHostingController(rootView: settingsView)
+
+            let window = NSWindow(contentViewController: hostingController)
+            window.identifier = NSUserInterfaceItemIdentifier("settings")
+            window.title = "TypoFixr Settings"
+            window.styleMask = [.titled, .closable]
+            window.setContentSize(NSSize(width: 450, height: 380))
+            window.center()
+
+            settingsWindow = window
+
             NSApp.activate(ignoringOtherApps: true)
-            return
+            window.makeKeyAndOrderFront(nil)
         }
-
-        let settingsView = SettingsView()
-            .environmentObject(appState)
-
-        let hostingController = NSHostingController(rootView: settingsView)
-
-        let window = NSWindow(contentViewController: hostingController)
-        window.identifier = NSUserInterfaceItemIdentifier("settings")
-        window.title = "TypoFixr Settings"
-        window.styleMask = [.titled, .closable]
-        window.setContentSize(NSSize(width: 450, height: 380))
-        window.center()
-        window.isReleasedWhenClosed = false
-
-        settingsWindow = window
-
-        NSApp.activate(ignoringOtherApps: true)
-        window.makeKeyAndOrderFront(nil)
     }
 
     private func showOnboarding() {

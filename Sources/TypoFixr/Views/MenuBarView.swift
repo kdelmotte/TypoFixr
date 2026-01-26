@@ -130,9 +130,7 @@ struct MenuBarView: View {
     private var actionsSection: some View {
         VStack(spacing: 0) {
             MenuButton(title: "Settings...", systemImage: "gear") {
-                if let appDelegate = NSApp.delegate as? AppDelegate {
-                    appDelegate.showSettings()
-                }
+                NotificationCenter.default.post(name: NSNotification.Name("ShowSettings"), object: nil)
             }
             
             MenuButton(title: "Send Feedback", systemImage: "envelope") {

@@ -34,7 +34,7 @@ class TextCorrectionService {
         guard appState.hasAccessibilityPermission else {
             appState.lastError = "Accessibility permission required"
             appState.setIconState(.noPermission)
-            showNotification(title: "Permission Required", message: "Please grant Accessibility permission in System Preferences.")
+            HUDService.shared.show(title: "Permission Needed", subtitle: "Grant Accessibility access", isSuccess: false)
             return
         }
 
@@ -68,7 +68,8 @@ class TextCorrectionService {
             characterLimit: appState.characterLimit
         ) else {
             appState.lastError = "Could not capture text"
-            showNotification(title: "Error", message: "Could not capture text from the field.")
+            appState.setIconState(.error, autoReset: true)
+            HUDService.shared.show(title: "Error", subtitle: "Could not capture text", isSuccess: false)
             return
         }
         
@@ -76,17 +77,14 @@ class TextCorrectionService {
         if capturedText.strategy == .tooLong {
             appState.lastError = "Text too long"
             appState.setIconState(.error, autoReset: true)
-            showNotification(
-                title: "Text Too Long",
-                message: "Please select the specific text you want to fix (limit: \(appState.characterLimit) characters)."
-            )
+            HUDService.shared.show(title: "Text Too Long", subtitle: "Select up to \(appState.characterLimit) characters", isSuccess: false)
             return
         }
 
         // Handle empty text
         if capturedText.isEmpty {
             appState.setIconState(.success, autoReset: true)
-            showNotification(title: "No Text", message: "No text to fix.")
+            HUDService.shared.show(title: "No Text", subtitle: "No text to fix", isSuccess: true)
             return
         }
         
@@ -102,11 +100,14 @@ class TextCorrectionService {
                 languagePreference: appState.languagePreference
             )
             
-            // Check if text actually changed
-            if result.correctedText == capturedText.text {
+            // Check if text actually changed (ignore insignificant whitespace differences)
+            let originalNormalized = capturedText.text.trimmingCharacters(in: .whitespacesAndNewlines)
+            let correctedNormalized = result.correctedText.trimmingCharacters(in: .whitespacesAndNewlines)
+            
+            if correctedNormalized == originalNormalized {
                 appState.isProcessing = false
                 appState.setIconState(.success, autoReset: true)
-                showNotification(title: "No Changes", message: "Your text looks good!")
+                HUDService.shared.show(title: "No Changes", subtitle: "Your text looks good!", isSuccess: true)
                 return
             }
             
@@ -142,9 +143,9 @@ class TextCorrectionService {
                 // Update state
                 appState.addCorrection(correction)
 
-                // Show success icon and notification
+                // Show success icon and HUD
                 appState.setIconState(.success, autoReset: true)
-                showNotification(title: "Fixed!", message: "Your text has been corrected.")
+                HUDService.shared.show(title: "Fixed!", subtitle: "⌘Z to undo", isSuccess: true)
 
                 // Update bookmark
                 let newEndIndex = capturedText.startIndex + result.correctedText.count
@@ -159,7 +160,7 @@ class TextCorrectionService {
             } else {
                 appState.lastError = "Could not replace text"
                 appState.setIconState(.error, autoReset: true)
-                showNotification(title: "Error", message: "Could not replace the text. Try selecting the text first.")
+                HUDService.shared.show(title: "Error", subtitle: "Could not replace text", isSuccess: false)
 
                 // Log failed attempt
                 DatabaseManager.shared.logUsage(
@@ -173,7 +174,7 @@ class TextCorrectionService {
         } catch let error as OpenAIService.OpenAIError {
             appState.lastError = error.localizedDescription
             appState.setIconState(.error, autoReset: true)
-            showNotification(title: "Error", message: error.localizedDescription ?? "An error occurred")
+            HUDService.shared.show(title: "Error", subtitle: error.localizedDescription ?? "An error occurred", isSuccess: false)
 
             // Log failed attempt
             DatabaseManager.shared.logUsage(
@@ -185,7 +186,7 @@ class TextCorrectionService {
         } catch {
             appState.lastError = error.localizedDescription
             appState.setIconState(.error, autoReset: true)
-            showNotification(title: "Error", message: "An unexpected error occurred.")
+            HUDService.shared.show(title: "Error", subtitle: "An unexpected error occurred", isSuccess: false)
 
             DatabaseManager.shared.logUsage(
                 inputTokenCount: nil,
@@ -220,20 +221,11 @@ class TextCorrectionService {
             appState.canToggleRevert = false
 
             appState.setIconState(.success, autoReset: true)
-            showNotification(title: "Reverted", message: "Text restored to original.")
+            HUDService.shared.show(title: "Reverted", subtitle: "Original text restored", isSuccess: true)
         } else {
             appState.setIconState(.error, autoReset: true)
-            showNotification(title: "Error", message: "Could not revert. Try using Cmd+Z.")
+            HUDService.shared.show(title: "Error", subtitle: "Could not revert. Try ⌘Z", isSuccess: false)
         }
-    }
-    
-    private func showNotification(title: String, message: String) {
-        let notification = NSUserNotification()
-        notification.title = title
-        notification.informativeText = message
-        notification.soundName = nil
-
-        NSUserNotificationCenter.default.deliver(notification)
     }
 
     // MARK: - Clipboard-based Fallback for Chrome, Electron apps, etc.
@@ -287,20 +279,14 @@ class TextCorrectionService {
             appState.isProcessing = false
             appState.setIconState(.error, autoReset: true)
             restoreClipboard(pasteboard: pasteboard, savedContent: savedClipboard)
-            showNotification(
-                title: "Text Too Long",
-                message: "The selected text has \(selected.count) characters. Please select up to \(characterLimit) characters."
-            )
+            HUDService.shared.show(title: "Text Too Long", subtitle: "Selected \(selected.count) chars (max \(characterLimit))", isSuccess: false)
             return
 
         case .noSelection:
             appState.isProcessing = false
             appState.setIconState(.error, autoReset: true)
             restoreClipboard(pasteboard: pasteboard, savedContent: savedClipboard)
-            showNotification(
-                title: "Select Some Text",
-                message: "Highlight the text you'd like to fix, then press the shortcut again."
-            )
+            HUDService.shared.show(title: "Select Text", subtitle: "Highlight text first", isSuccess: false)
             return
         }
 
@@ -309,10 +295,7 @@ class TextCorrectionService {
             appState.isProcessing = false
             appState.setIconState(.error, autoReset: true)
             restoreClipboard(pasteboard: pasteboard, savedContent: savedClipboard)
-            showNotification(
-                title: "Select Some Text",
-                message: "Highlight the text you'd like to fix, then press the shortcut again."
-            )
+            HUDService.shared.show(title: "Select Text", subtitle: "Highlight text first", isSuccess: false)
             return
         }
 
@@ -324,12 +307,15 @@ class TextCorrectionService {
                 languagePreference: appState.languagePreference
             )
 
-            // Check if text actually changed
-            if result.correctedText == textToCorrect {
+            // Check if text actually changed (ignore insignificant whitespace differences)
+            let originalNormalized = textToCorrect.trimmingCharacters(in: .whitespacesAndNewlines)
+            let correctedNormalized = result.correctedText.trimmingCharacters(in: .whitespacesAndNewlines)
+            
+            if correctedNormalized == originalNormalized {
                 appState.isProcessing = false
                 appState.setIconState(.success, autoReset: true)
                 restoreClipboard(pasteboard: pasteboard, savedContent: savedClipboard)
-                showNotification(title: "No Changes", message: "Your text looks good!")
+                HUDService.shared.show(title: "No Changes", subtitle: "Your text looks good!", isSuccess: true)
                 return
             }
 
@@ -357,19 +343,19 @@ class TextCorrectionService {
 
             appState.addCorrection(correction)
 
-            // Show success icon and notification
+            // Show success icon and HUD
             appState.setIconState(.success, autoReset: true)
-            showNotification(title: "Fixed!", message: "Your text has been corrected.")
+            HUDService.shared.show(title: "Fixed!", subtitle: "⌘Z to undo", isSuccess: true)
 
         } catch let error as OpenAIService.OpenAIError {
             appState.lastError = error.localizedDescription
             appState.setIconState(.error, autoReset: true)
-            showNotification(title: "Error", message: error.localizedDescription)
+            HUDService.shared.show(title: "Error", subtitle: error.localizedDescription, isSuccess: false)
             restoreClipboard(pasteboard: pasteboard, savedContent: savedClipboard)
         } catch {
             appState.lastError = error.localizedDescription
             appState.setIconState(.error, autoReset: true)
-            showNotification(title: "Error", message: "An unexpected error occurred.")
+            HUDService.shared.show(title: "Error", subtitle: "An unexpected error occurred", isSuccess: false)
             restoreClipboard(pasteboard: pasteboard, savedContent: savedClipboard)
         }
 
@@ -395,10 +381,10 @@ class TextCorrectionService {
         return .success(text)
     }
 
-    /// Try to select text BEFORE cursor to start of paragraph (Shift+Cmd+Up)
+    /// Try to select text BEFORE cursor to start of paragraph (Shift+Option+Up)
     private func tryParagraphSelection(pasteboard: NSPasteboard, characterLimit: Int) async -> SelectionResult {
         // Select backward from cursor to start of paragraph
-        await simulateKeyPress(keyCode: 126, modifiers: [.maskCommand, .maskShift]) // Up arrow
+        await simulateKeyPress(keyCode: 126, modifiers: [.maskAlternate, .maskShift]) // Up arrow
         try? await Task.sleep(nanoseconds: 50_000_000) // 0.05 seconds
 
         // Copy selected text
