@@ -1,14 +1,107 @@
 import Foundation
 import SQLite
+import CryptoKit
 
 // Type alias to avoid conflict with Foundation.Expression (macOS 15+)
 typealias SQLExpression = SQLite.Expression
+
+// MARK: - Crypto Helper for Database Encryption
+struct CryptoHelper {
+    private static let keychainKey = "db_encryption_key"
+    
+    /// Gets or creates the encryption key from Keychain
+    static func getEncryptionKey() -> SymmetricKey {
+        // Try to load existing key
+        if let keyData = loadKeyFromKeychain() {
+            return SymmetricKey(data: keyData)
+        }
+        
+        // Generate new key
+        let newKey = SymmetricKey(size: .bits256)
+        saveKeyToKeychain(newKey)
+        return newKey
+    }
+    
+    /// Encrypts a string using AES-GCM
+    static func encrypt(_ plaintext: String) -> String? {
+        guard let data = plaintext.data(using: .utf8) else { return nil }
+        
+        do {
+            let key = getEncryptionKey()
+            let sealedBox = try AES.GCM.seal(data, using: key)
+            guard let combined = sealedBox.combined else { return nil }
+            return combined.base64EncodedString()
+        } catch {
+            print("Encryption failed: \(error)")
+            return nil
+        }
+    }
+    
+    /// Decrypts an AES-GCM encrypted string
+    static func decrypt(_ ciphertext: String) -> String? {
+        guard let data = Data(base64Encoded: ciphertext) else { return nil }
+        
+        do {
+            let key = getEncryptionKey()
+            let sealedBox = try AES.GCM.SealedBox(combined: data)
+            let decryptedData = try AES.GCM.open(sealedBox, using: key)
+            return String(data: decryptedData, encoding: .utf8)
+        } catch {
+            print("Decryption failed: \(error)")
+            return nil
+        }
+    }
+    
+    // MARK: - Keychain Operations for Encryption Key
+    
+    private static func loadKeyFromKeychain() -> Data? {
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrAccount as String: keychainKey,
+            kSecAttrService as String: "com.typofixr.encryption",
+            kSecReturnData as String: true,
+            kSecMatchLimit as String: kSecMatchLimitOne
+        ]
+        
+        var result: AnyObject?
+        let status = SecItemCopyMatching(query as CFDictionary, &result)
+        
+        guard status == errSecSuccess, let data = result as? Data else {
+            return nil
+        }
+        
+        return data
+    }
+    
+    private static func saveKeyToKeychain(_ key: SymmetricKey) {
+        let keyData = key.withUnsafeBytes { Data($0) }
+        
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrAccount as String: keychainKey,
+            kSecAttrService as String: "com.typofixr.encryption",
+            kSecValueData as String: keyData
+        ]
+        
+        // Delete any existing key first
+        SecItemDelete(query as CFDictionary)
+        
+        // Add new key
+        let status = SecItemAdd(query as CFDictionary, nil)
+        if status != errSecSuccess {
+            print("Failed to save encryption key: \(status)")
+        }
+    }
+}
 
 class DatabaseManager {
     static let shared = DatabaseManager()
 
     private var db: Connection?
     private let deviceId: String
+    
+    // Flag to determine if encryption is enabled
+    private var encryptionEnabled: Bool = true
 
     // MARK: - Tables
     private let usageLog = Table("usage_log")
@@ -28,6 +121,7 @@ class DatabaseManager {
     private let originalText = SQLExpression<String>("original_text")
     private let correctedText = SQLExpression<String>("corrected_text")
     private let reverted = SQLExpression<Bool>("reverted")
+    private let isEncrypted = SQLExpression<Bool>("is_encrypted")
     
     private init() {
         // Get or create device ID
@@ -39,7 +133,22 @@ class DatabaseManager {
             self.deviceId = newDeviceId
         }
         
+        // Load encryption preference (disabled by default for now)
+        self.encryptionEnabled = UserDefaults.standard.object(forKey: "encryptionEnabled") as? Bool ?? false
+        
         setupDatabase()
+    }
+    
+    // MARK: - Encryption Helpers
+    
+    private func encryptText(_ text: String) -> String {
+        guard encryptionEnabled else { return text }
+        return CryptoHelper.encrypt(text) ?? text
+    }
+    
+    private func decryptText(_ text: String, wasEncrypted: Bool) -> String {
+        guard wasEncrypted else { return text }
+        return CryptoHelper.decrypt(text) ?? text
     }
     
     private func setupDatabase() {
@@ -86,7 +195,15 @@ class DatabaseManager {
             t.column(reverted, defaultValue: false)
             t.column(inputTokens)
             t.column(outputTokens)
+            t.column(isEncrypted, defaultValue: false)
         })
+        
+        // Add is_encrypted column to existing tables (migration)
+        do {
+            try db?.run(correctionHistory.addColumn(isEncrypted, defaultValue: false))
+        } catch {
+            // Column already exists, ignore error
+        }
         
         // Create indexes
         try db?.run(usageLog.createIndex(timestamp, ifNotExists: true))
@@ -154,15 +271,20 @@ class DatabaseManager {
     // MARK: - Correction History
     func saveCorrection(_ correction: Correction) {
         do {
+            // Encrypt text fields if encryption is enabled
+            let encryptedOriginal = encryptText(correction.originalText)
+            let encryptedCorrected = encryptText(correction.correctedText)
+            
             try db?.run(correctionHistory.insert(or: .replace,
                 correctionId <- correction.id.uuidString,
                 timestamp <- correction.timestamp,
-                originalText <- correction.originalText,
-                correctedText <- correction.correctedText,
+                originalText <- encryptedOriginal,
+                correctedText <- encryptedCorrected,
                 appBundleId <- correction.appBundleId,
                 reverted <- correction.reverted,
                 inputTokens <- correction.inputTokens,
-                outputTokens <- correction.outputTokens
+                outputTokens <- correction.outputTokens,
+                isEncrypted <- encryptionEnabled
             ))
             
             // Also log to usage
@@ -187,11 +309,15 @@ class DatabaseManager {
             var corrections: [Correction] = []
 
             for row in try db.prepare(query) {
+                let wasEncrypted = row[isEncrypted]
+                let decryptedOriginal = decryptText(row[originalText], wasEncrypted: wasEncrypted)
+                let decryptedCorrected = decryptText(row[correctedText], wasEncrypted: wasEncrypted)
+                
                 let correction = Correction(
                     id: UUID(uuidString: row[correctionId]) ?? UUID(),
                     timestamp: row[timestamp],
-                    originalText: row[originalText],
-                    correctedText: row[correctedText],
+                    originalText: decryptedOriginal,
+                    correctedText: decryptedCorrected,
                     appBundleId: row[appBundleId],
                     reverted: row[reverted],
                     inputTokens: row[inputTokens],
@@ -237,6 +363,26 @@ class DatabaseManager {
     // MARK: - Device ID
     func getDeviceId() -> String {
         return deviceId
+    }
+    
+    // MARK: - Clear History
+    func clearCorrectionHistory() {
+        do {
+            try db?.run(correctionHistory.delete())
+            print("Correction history cleared")
+        } catch {
+            print("Failed to clear correction history: \(error)")
+        }
+    }
+    
+    // MARK: - Encryption Settings
+    func setEncryptionEnabled(_ enabled: Bool) {
+        encryptionEnabled = enabled
+        UserDefaults.standard.set(enabled, forKey: "encryptionEnabled")
+    }
+    
+    func isEncryptionEnabled() -> Bool {
+        return encryptionEnabled
     }
 }
 

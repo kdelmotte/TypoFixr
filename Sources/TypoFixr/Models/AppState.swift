@@ -9,6 +9,7 @@ enum MenuBarIconState {
     case success
     case error
     case noPermission
+    case rateLimited
 }
 
 class AppState: ObservableObject {
@@ -55,6 +56,43 @@ class AppState: ObservableObject {
         }
     }
     
+    // MARK: - Security & Privacy Settings
+    @Published var securityWarningsEnabled: Bool {
+        didSet {
+            UserDefaults.standard.set(securityWarningsEnabled, forKey: "securityWarningsEnabled")
+        }
+    }
+    @Published var incognitoMode: Bool {
+        didSet {
+            UserDefaults.standard.set(incognitoMode, forKey: "incognitoMode")
+        }
+    }
+    
+    // MARK: - Rate Limiting
+    @Published var correctionsPerMinuteLimit: Int {
+        didSet {
+            UserDefaults.standard.set(correctionsPerMinuteLimit, forKey: "correctionsPerMinuteLimit")
+        }
+    }
+    @Published var correctionsPerHourLimit: Int {
+        didSet {
+            UserDefaults.standard.set(correctionsPerHourLimit, forKey: "correctionsPerHourLimit")
+        }
+    }
+    private var recentCorrectionTimestamps: [Date] = []
+    
+    // MARK: - Spending Cap
+    @Published var monthlyTokenLimit: Int {
+        didSet {
+            UserDefaults.standard.set(monthlyTokenLimit, forKey: "monthlyTokenLimit")
+        }
+    }
+    @Published var spendingCapEnabled: Bool {
+        didSet {
+            UserDefaults.standard.set(spendingCapEnabled, forKey: "spendingCapEnabled")
+        }
+    }
+    
     // MARK: - API Configuration
     @Published var openAIApiKey: String {
         didSet {
@@ -69,8 +107,20 @@ class AppState: ObservableObject {
     init() {
         // Load persisted values
         self.hasCompletedOnboarding = UserDefaults.standard.bool(forKey: "hasCompletedOnboarding")
-        self.characterLimit = UserDefaults.standard.object(forKey: "characterLimit") as? Int ?? 500
+        self.characterLimit = UserDefaults.standard.object(forKey: "characterLimit") as? Int ?? 1000
         self.languagePreference = UserDefaults.standard.string(forKey: "languagePreference") ?? "auto"
+        
+        // Load security & privacy settings
+        self.securityWarningsEnabled = UserDefaults.standard.object(forKey: "securityWarningsEnabled") as? Bool ?? true
+        self.incognitoMode = UserDefaults.standard.bool(forKey: "incognitoMode")
+        
+        // Load rate limiting settings
+        self.correctionsPerMinuteLimit = UserDefaults.standard.object(forKey: "correctionsPerMinuteLimit") as? Int ?? 15
+        self.correctionsPerHourLimit = UserDefaults.standard.object(forKey: "correctionsPerHourLimit") as? Int ?? 100
+        
+        // Load spending cap settings
+        self.monthlyTokenLimit = UserDefaults.standard.object(forKey: "monthlyTokenLimit") as? Int ?? 100000
+        self.spendingCapEnabled = UserDefaults.standard.object(forKey: "spendingCapEnabled") as? Bool ?? false
         
         // Load shortcut
         if let data = UserDefaults.standard.data(forKey: "keyboardShortcut"),
@@ -93,15 +143,33 @@ class AppState: ObservableObject {
     
     // MARK: - History Management
     func addCorrection(_ correction: Correction) {
-        correctionHistory.insert(correction, at: 0)
+        // Track for rate limiting
+        recentCorrectionTimestamps.append(Date())
+        cleanupOldTimestamps()
         
-        // Keep only last 10 in memory
-        if correctionHistory.count > 10 {
-            correctionHistory = Array(correctionHistory.prefix(10))
+        // In incognito mode, only keep in memory temporarily, don't save to database
+        if incognitoMode {
+            correctionHistory.insert(correction, at: 0)
+            // Keep only last 3 in memory for undo purposes
+            if correctionHistory.count > 3 {
+                correctionHistory = Array(correctionHistory.prefix(3))
+            }
+            // Log usage without saving full text
+            databaseManager.logUsage(
+                inputTokenCount: correction.inputTokens,
+                outputTokenCount: correction.outputTokens,
+                app: correction.appBundleId,
+                wasSuccessful: true
+            )
+        } else {
+            correctionHistory.insert(correction, at: 0)
+            // Keep only last 10 in memory
+            if correctionHistory.count > 10 {
+                correctionHistory = Array(correctionHistory.prefix(10))
+            }
+            // Save to database
+            databaseManager.saveCorrection(correction)
         }
-        
-        // Save to database
-        databaseManager.saveCorrection(correction)
         
         // Start revert timer
         startRevertTimer()
@@ -110,12 +178,78 @@ class AppState: ObservableObject {
     func revertCorrection(_ correction: Correction) {
         if let index = correctionHistory.firstIndex(where: { $0.id == correction.id }) {
             correctionHistory[index].reverted = true
-            databaseManager.markCorrectionReverted(correction.id)
+            if !incognitoMode {
+                databaseManager.markCorrectionReverted(correction.id)
+            }
         }
     }
     
     private func loadRecentHistory() {
-        correctionHistory = databaseManager.getRecentCorrections(limit: 10)
+        if !incognitoMode {
+            correctionHistory = databaseManager.getRecentCorrections(limit: 10)
+        }
+    }
+    
+    func clearHistory() {
+        correctionHistory.removeAll()
+        databaseManager.clearCorrectionHistory()
+    }
+    
+    // MARK: - Rate Limiting
+    
+    /// Checks if a new correction is allowed based on rate limits
+    /// Returns true if allowed, false if rate limited
+    func checkRateLimit() -> Bool {
+        cleanupOldTimestamps()
+        
+        let now = Date()
+        let oneMinuteAgo = now.addingTimeInterval(-60)
+        let oneHourAgo = now.addingTimeInterval(-3600)
+        
+        let correctionsLastMinute = recentCorrectionTimestamps.filter { $0 > oneMinuteAgo }.count
+        let correctionsLastHour = recentCorrectionTimestamps.filter { $0 > oneHourAgo }.count
+        
+        if correctionsLastMinute >= correctionsPerMinuteLimit {
+            return false
+        }
+        
+        if correctionsLastHour >= correctionsPerHourLimit {
+            return false
+        }
+        
+        // Check spending cap
+        if spendingCapEnabled {
+            let thisMonth = Calendar.current.date(from: Calendar.current.dateComponents([.year, .month], from: now))!
+            let monthlyTokens = databaseManager.getTotalTokensUsed(since: thisMonth)
+            let totalMonthlyTokens = monthlyTokens.input + monthlyTokens.output
+            
+            if totalMonthlyTokens >= monthlyTokenLimit {
+                return false
+            }
+        }
+        
+        return true
+    }
+    
+    private func cleanupOldTimestamps() {
+        let oneHourAgo = Date().addingTimeInterval(-3600)
+        recentCorrectionTimestamps = recentCorrectionTimestamps.filter { $0 > oneHourAgo }
+    }
+    
+    /// Returns current usage stats for display
+    func getCurrentUsageStats() -> (minuteCount: Int, hourCount: Int, monthlyTokens: Int) {
+        cleanupOldTimestamps()
+        
+        let now = Date()
+        let oneMinuteAgo = now.addingTimeInterval(-60)
+        let oneHourAgo = now.addingTimeInterval(-3600)
+        let thisMonth = Calendar.current.date(from: Calendar.current.dateComponents([.year, .month], from: now))!
+        
+        let minuteCount = recentCorrectionTimestamps.filter { $0 > oneMinuteAgo }.count
+        let hourCount = recentCorrectionTimestamps.filter { $0 > oneHourAgo }.count
+        let monthlyTokens = databaseManager.getTotalTokensUsed(since: thisMonth)
+        
+        return (minuteCount, hourCount, monthlyTokens.input + monthlyTokens.output)
     }
     
     // MARK: - Revert Timer
@@ -136,7 +270,7 @@ class AppState: ObservableObject {
         iconResetTimer?.invalidate()
         iconState = state
 
-        if autoReset && state != .normal && state != .processing && state != .noPermission {
+        if autoReset && state != .normal && state != .processing && state != .noPermission && state != .rateLimited {
             iconResetTimer = Timer.scheduledTimer(withTimeInterval: duration, repeats: false) { [weak self] _ in
                 DispatchQueue.main.async {
                     self?.iconState = .normal

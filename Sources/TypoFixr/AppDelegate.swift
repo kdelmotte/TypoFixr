@@ -44,6 +44,15 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             }
             .store(in: &cancellables)
 
+        // Subscribe to keyboard shortcut changes
+        appState.$keyboardShortcut
+            .dropFirst() // Skip initial value
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in
+                self?.hotkeyService.registerHotkey()
+            }
+            .store(in: &cancellables)
+
         // Check if onboarding is needed
         if !appState.hasCompletedOnboarding {
             // First launch: show only onboarding, no menu bar yet
@@ -146,6 +155,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             button.image = NSImage(systemSymbolName: "xmark.circle.fill", accessibilityDescription: "Error")?.withSymbolConfiguration(config)
         case .noPermission:
             button.image = NSImage(systemSymbolName: "keyboard.badge.exclamationmark", accessibilityDescription: "Permission Required")?.withSymbolConfiguration(config)
+        case .rateLimited:
+            button.image = NSImage(systemSymbolName: "hand.raised.fill", accessibilityDescription: "Rate Limited")?.withSymbolConfiguration(config)
         case .normal:
             button.image = NSImage(systemSymbolName: "keyboard", accessibilityDescription: "TypoFixr")?.withSymbolConfiguration(config)
         }

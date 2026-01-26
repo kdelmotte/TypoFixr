@@ -23,12 +23,18 @@ struct SettingsView: View {
                     Label("API", systemImage: "key")
                 }
             
+            SecurityPrivacySettingsView()
+                .environmentObject(appState)
+                .tabItem {
+                    Label("Security", systemImage: "lock.shield")
+                }
+            
             AboutView()
                 .tabItem {
                     Label("About", systemImage: "info.circle")
                 }
         }
-        .frame(width: 450, height: 300)
+        .frame(width: 450, height: 380)
     }
 }
 
@@ -319,6 +325,127 @@ struct APISettingsView: View {
         }
         .formStyle(.grouped)
         .padding()
+    }
+}
+
+// MARK: - Security & Privacy Settings
+struct SecurityPrivacySettingsView: View {
+    @EnvironmentObject var appState: AppState
+    @State private var showClearHistoryConfirmation = false
+    
+    var body: some View {
+        Form {
+            // Privacy Section
+            Section {
+                VStack(alignment: .leading, spacing: 8) {
+                    Toggle("Incognito Mode", isOn: $appState.incognitoMode)
+                        .help("When enabled, correction history is not saved to disk")
+                    
+                    Text("Corrections won't be saved to history. Only recent corrections for undo are kept in memory.")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+                
+                HStack {
+                    Button("Clear All History") {
+                        showClearHistoryConfirmation = true
+                    }
+                    .foregroundColor(.red)
+                    
+                    Spacer()
+                    
+                    Text("\(appState.correctionHistory.count) corrections in memory")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+            } header: {
+                Label("Privacy", systemImage: "eye.slash")
+            }
+            
+            // Security Section
+            Section {
+                Toggle("Security Warnings", isOn: $appState.securityWarningsEnabled)
+                    .help("Show warnings when text contains potential prompt injections or sensitive data")
+                
+                Text("Warns before sending text that may contain credit card numbers, passwords, or suspicious patterns.")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            } header: {
+                Label("Security", systemImage: "shield")
+            }
+            
+            // Rate Limiting Section
+            Section {
+                Stepper("Max \(appState.correctionsPerMinuteLimit) corrections/minute",
+                        value: $appState.correctionsPerMinuteLimit,
+                        in: 5...30)
+                
+                Stepper("Max \(appState.correctionsPerHourLimit) corrections/hour",
+                        value: $appState.correctionsPerHourLimit,
+                        in: 20...500)
+            } header: {
+                Label("Rate Limiting", systemImage: "gauge.with.dots.needle.50percent")
+            }
+            
+            // Spending Cap Section
+            Section {
+                Toggle("Enable Spending Cap", isOn: $appState.spendingCapEnabled)
+                
+                if appState.spendingCapEnabled {
+                    Stepper("Limit: \(formatTokens(appState.monthlyTokenLimit)) tokens/month",
+                            value: $appState.monthlyTokenLimit,
+                            in: 10000...1000000,
+                            step: 10000)
+                    
+                    let stats = appState.getCurrentUsageStats()
+                    HStack {
+                        Text("Current usage:")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        Text("\(formatTokens(stats.monthlyTokens)) tokens this month")
+                            .font(.caption)
+                            .fontWeight(.medium)
+                    }
+                }
+            } header: {
+                Label("Cost Control", systemImage: "dollarsign.circle")
+            }
+            
+            // Data Notice
+            Section {
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack(spacing: 8) {
+                        Image(systemName: "info.circle")
+                            .foregroundColor(.blue)
+                        Text("Your text is sent to OpenAI for processing")
+                            .font(.caption)
+                    }
+                    
+                    Link("View OpenAI Privacy Policy",
+                         destination: URL(string: "https://openai.com/policies/privacy-policy")!)
+                        .font(.caption)
+                }
+            }
+        }
+        .formStyle(.grouped)
+        .padding()
+        .alert("Clear History", isPresented: $showClearHistoryConfirmation) {
+            Button("Cancel", role: .cancel) { }
+            Button("Clear", role: .destructive) {
+                appState.clearHistory()
+            }
+        } message: {
+            Text("This will remove all correction history from memory. Database history will remain until you delete the app data.")
+        }
+    }
+    
+    private func formatTokens(_ count: Int) -> String {
+        if count >= 1000000 {
+            return String(format: "%.1fM", Double(count) / 1_000_000)
+        } else if count >= 1000 {
+            return String(format: "%.0fK", Double(count) / 1000)
+        }
+        return "\(count)"
     }
 }
 
