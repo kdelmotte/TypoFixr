@@ -62,12 +62,6 @@ class AppState: ObservableObject {
             UserDefaults.standard.set(securityWarningsEnabled, forKey: "securityWarningsEnabled")
         }
     }
-    @Published var incognitoMode: Bool {
-        didSet {
-            UserDefaults.standard.set(incognitoMode, forKey: "incognitoMode")
-        }
-    }
-    
     // MARK: - Rate Limiting
     @Published var correctionsPerMinuteLimit: Int {
         didSet {
@@ -112,8 +106,7 @@ class AppState: ObservableObject {
         
         // Load security & privacy settings
         self.securityWarningsEnabled = UserDefaults.standard.object(forKey: "securityWarningsEnabled") as? Bool ?? true
-        self.incognitoMode = UserDefaults.standard.bool(forKey: "incognitoMode")
-        
+
         // Load rate limiting settings
         self.correctionsPerMinuteLimit = UserDefaults.standard.object(forKey: "correctionsPerMinuteLimit") as? Int ?? 15
         self.correctionsPerHourLimit = UserDefaults.standard.object(forKey: "correctionsPerHourLimit") as? Int ?? 100
@@ -146,48 +139,28 @@ class AppState: ObservableObject {
         // Track for rate limiting
         recentCorrectionTimestamps.append(Date())
         cleanupOldTimestamps()
-        
-        // In incognito mode, only keep in memory temporarily, don't save to database
-        if incognitoMode {
-            correctionHistory.insert(correction, at: 0)
-            // Keep only last 3 in memory for undo purposes
-            if correctionHistory.count > 3 {
-                correctionHistory = Array(correctionHistory.prefix(3))
-            }
-            // Log usage without saving full text
-            databaseManager.logUsage(
-                inputTokenCount: correction.inputTokens,
-                outputTokenCount: correction.outputTokens,
-                app: correction.appBundleId,
-                wasSuccessful: true
-            )
-        } else {
-            correctionHistory.insert(correction, at: 0)
-            // Keep only last 10 in memory
-            if correctionHistory.count > 10 {
-                correctionHistory = Array(correctionHistory.prefix(10))
-            }
-            // Save to database
-            databaseManager.saveCorrection(correction)
+
+        correctionHistory.insert(correction, at: 0)
+        // Keep only last 10 in memory
+        if correctionHistory.count > 10 {
+            correctionHistory = Array(correctionHistory.prefix(10))
         }
-        
+        // Save to database
+        databaseManager.saveCorrection(correction)
+
         // Start revert timer
         startRevertTimer()
     }
-    
+
     func revertCorrection(_ correction: Correction) {
         if let index = correctionHistory.firstIndex(where: { $0.id == correction.id }) {
             correctionHistory[index].reverted = true
-            if !incognitoMode {
-                databaseManager.markCorrectionReverted(correction.id)
-            }
+            databaseManager.markCorrectionReverted(correction.id)
         }
     }
-    
+
     private func loadRecentHistory() {
-        if !incognitoMode {
-            correctionHistory = databaseManager.getRecentCorrections(limit: 10)
-        }
+        correctionHistory = databaseManager.getRecentCorrections(limit: 10)
     }
     
     func clearHistory() {

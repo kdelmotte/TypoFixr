@@ -57,11 +57,22 @@ struct MenuBarView: View {
     // MARK: - Recent Corrections
     private var recentCorrectionsSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("Recent Corrections")
-                .font(.caption)
+            HStack {
+                Text("Recent Corrections")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+
+                Spacer()
+
+                Button("Clear") {
+                    appState.clearHistory()
+                }
+                .buttonStyle(.borderless)
+                .font(.caption2)
                 .foregroundColor(.secondary)
-                .padding(.horizontal)
-                .padding(.top, 8)
+            }
+            .padding(.horizontal)
+            .padding(.top, 8)
             
             ForEach(appState.correctionHistory.prefix(3)) { correction in
                 CorrectionRow(correction: correction)

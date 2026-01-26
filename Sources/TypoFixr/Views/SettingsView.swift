@@ -337,23 +337,14 @@ struct SecurityPrivacySettingsView: View {
         Form {
             // Privacy Section
             Section {
-                VStack(alignment: .leading, spacing: 8) {
-                    Toggle("Incognito Mode", isOn: $appState.incognitoMode)
-                        .help("When enabled, correction history is not saved to disk")
-                    
-                    Text("Corrections won't be saved to history. Only recent corrections for undo are kept in memory.")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-                
                 HStack {
                     Button("Clear All History") {
                         showClearHistoryConfirmation = true
                     }
                     .foregroundColor(.red)
-                    
+
                     Spacer()
-                    
+
                     Text("\(appState.correctionHistory.count) corrections in memory")
                         .font(.caption)
                         .foregroundColor(.secondary)
