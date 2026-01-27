@@ -3,33 +3,14 @@ import AppKit
 
 class TextCorrectionService {
     private let appState: AppState
-    private let accessibilityService = AccessibilityService.shared
     private let openAIService = OpenAIService.shared
-    
-    // For revert functionality
-    private var lastCorrectionInfo: LastCorrectionInfo?
-    
-    struct LastCorrectionInfo {
-        let element: AXUIElement
-        let originalText: String
-        let correctedText: String
-        let startIndex: Int
-        let strategy: CaptureStrategy
-        let timestamp: Date
-    }
-    
+
     init(appState: AppState) {
         self.appState = appState
     }
-    
+
     @MainActor
     func performCorrection() async {
-        // Check if we should revert instead
-        if appState.canToggleRevert, let lastInfo = lastCorrectionInfo {
-            await performRevert(lastInfo)
-            return
-        }
-
         // Check accessibility permission
         guard appState.hasAccessibilityPermission else {
             appState.lastError = "Accessibility permission required"
@@ -41,194 +22,11 @@ class TextCorrectionService {
         // Show processing state
         appState.setIconState(.processing)
 
-        // Get current text field - if this fails, try clipboard fallback
-        guard let textFieldInfo = accessibilityService.getCurrentTextField() else {
-            // Fallback to clipboard-based correction for apps like Chrome, Electron apps
-            await performClipboardCorrection()
-            return
-        }
-
-        // Check if editable - if not, try clipboard fallback
-        guard textFieldInfo.isEditable else {
-            await performClipboardCorrection()
-            return
-        }
-        
-        // Get bookmark for this field if exists
-        let bookmarkKey = CorrectionBookmark.generateKey(
-            appBundleId: textFieldInfo.appBundleId ?? "unknown",
-            textFieldSignature: textFieldInfo.fieldSignature
-        )
-        let bookmark = appState.getBookmark(for: bookmarkKey)
-        
-        // Capture text using hybrid strategy
-        guard let capturedText = accessibilityService.captureTextForCorrection(
-            textFieldInfo: textFieldInfo,
-            bookmark: bookmark,
-            characterLimit: appState.characterLimit
-        ) else {
-            appState.lastError = "Could not capture text"
-            appState.setIconState(.error, autoReset: true)
-            HUDService.shared.show(title: "Error", subtitle: "Could not capture text", isSuccess: false)
-            return
-        }
-        
-        // Handle too long text
-        if capturedText.strategy == .tooLong {
-            appState.lastError = "Text too long"
-            appState.setIconState(.error, autoReset: true)
-            HUDService.shared.show(title: "Text Too Long", subtitle: "Select up to \(appState.characterLimit) characters", isSuccess: false)
-            return
-        }
-
-        // Handle empty text
-        if capturedText.isEmpty {
-            appState.setIconState(.success, autoReset: true)
-            HUDService.shared.show(title: "No Text", subtitle: "No text to fix", isSuccess: true)
-            return
-        }
-        
-        // Start processing
-        appState.isProcessing = true
-        appState.lastError = nil
-        
-        do {
-            // Call OpenAI
-            let result = try await openAIService.correctText(
-                capturedText.text,
-                apiKey: appState.openAIApiKey,
-                languagePreference: appState.languagePreference
-            )
-            
-            // Check if text actually changed (ignore insignificant whitespace differences)
-            let originalNormalized = capturedText.text.trimmingCharacters(in: .whitespacesAndNewlines)
-            let correctedNormalized = result.correctedText.trimmingCharacters(in: .whitespacesAndNewlines)
-            
-            if correctedNormalized == originalNormalized {
-                appState.isProcessing = false
-                appState.setIconState(.success, autoReset: true)
-                HUDService.shared.show(title: "No Changes", subtitle: "Your text looks good!", isSuccess: true)
-                return
-            }
-            
-            // Replace text
-            let success = accessibilityService.replaceText(
-                in: textFieldInfo.element,
-                originalText: capturedText.text,
-                newText: result.correctedText,
-                startIndex: capturedText.startIndex,
-                strategy: capturedText.strategy
-            )
-            
-            if success {
-                // Store correction info for revert
-                lastCorrectionInfo = LastCorrectionInfo(
-                    element: textFieldInfo.element,
-                    originalText: capturedText.text,
-                    correctedText: result.correctedText,
-                    startIndex: capturedText.startIndex,
-                    strategy: capturedText.strategy,
-                    timestamp: Date()
-                )
-
-                // Create correction record
-                let correction = Correction(
-                    originalText: capturedText.text,
-                    correctedText: result.correctedText,
-                    appBundleId: textFieldInfo.appBundleId,
-                    inputTokens: result.inputTokens,
-                    outputTokens: result.outputTokens
-                )
-
-                // Update state
-                appState.addCorrection(correction)
-
-                // Show success icon and HUD
-                appState.setIconState(.success, autoReset: true)
-                HUDService.shared.show(title: "Fixed!", subtitle: "⌘Z to undo", isSuccess: true)
-
-                // Update bookmark
-                let newEndIndex = capturedText.startIndex + result.correctedText.count
-                let newBookmark = CorrectionBookmark(
-                    appBundleId: textFieldInfo.appBundleId ?? "unknown",
-                    textFieldSignature: textFieldInfo.fieldSignature,
-                    endIndex: newEndIndex,
-                    textAtBookmark: String(result.correctedText.suffix(20))
-                )
-                appState.setBookmark(for: bookmarkKey, bookmark: newBookmark)
-                
-            } else {
-                appState.lastError = "Could not replace text"
-                appState.setIconState(.error, autoReset: true)
-                HUDService.shared.show(title: "Error", subtitle: "Could not replace text", isSuccess: false)
-
-                // Log failed attempt
-                DatabaseManager.shared.logUsage(
-                    inputTokenCount: result.inputTokens,
-                    outputTokenCount: result.outputTokens,
-                    app: textFieldInfo.appBundleId,
-                    wasSuccessful: false
-                )
-            }
-
-        } catch let error as OpenAIService.OpenAIError {
-            appState.lastError = error.localizedDescription
-            appState.setIconState(.error, autoReset: true)
-            HUDService.shared.show(title: "Error", subtitle: error.localizedDescription ?? "An error occurred", isSuccess: false)
-
-            // Log failed attempt
-            DatabaseManager.shared.logUsage(
-                inputTokenCount: nil,
-                outputTokenCount: nil,
-                app: textFieldInfo.appBundleId,
-                wasSuccessful: false
-            )
-        } catch {
-            appState.lastError = error.localizedDescription
-            appState.setIconState(.error, autoReset: true)
-            HUDService.shared.show(title: "Error", subtitle: "An unexpected error occurred", isSuccess: false)
-
-            DatabaseManager.shared.logUsage(
-                inputTokenCount: nil,
-                outputTokenCount: nil,
-                app: textFieldInfo.appBundleId,
-                wasSuccessful: false
-            )
-        }
-
-        appState.isProcessing = false
-    }
-    
-    @MainActor
-    private func performRevert(_ lastInfo: LastCorrectionInfo) async {
-        // Replace corrected text with original
-        let success = accessibilityService.replaceText(
-            in: lastInfo.element,
-            originalText: lastInfo.correctedText,
-            newText: lastInfo.originalText,
-            startIndex: lastInfo.startIndex,
-            strategy: lastInfo.strategy
-        )
-
-        if success {
-            // Mark last correction as reverted
-            if let lastCorrection = appState.correctionHistory.first {
-                appState.revertCorrection(lastCorrection)
-            }
-
-            // Clear revert state
-            lastCorrectionInfo = nil
-            appState.canToggleRevert = false
-
-            appState.setIconState(.success, autoReset: true)
-            HUDService.shared.show(title: "Reverted", subtitle: "Original text restored", isSuccess: true)
-        } else {
-            appState.setIconState(.error, autoReset: true)
-            HUDService.shared.show(title: "Error", subtitle: "Could not revert. Try ⌘Z", isSuccess: false)
-        }
+        // Use clipboard-based correction - it's reliable across all apps
+        await performClipboardCorrection()
     }
 
-    // MARK: - Clipboard-based Fallback for Chrome, Electron apps, etc.
+    // MARK: - Clipboard-based Correction
 
     /// Result of smart text selection
     private enum SelectionResult {

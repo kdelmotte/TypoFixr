@@ -27,13 +27,12 @@ Sources/TypoFixr/
 2. After "Get Started" → Menu bar icon + settings window
 3. Subsequent launches → Menu bar only
 
-**Text Selection** (Native apps via Accessibility API):
-1. User's selection → 2. Bookmark (text since last fix) → 3. Current paragraph → 4. Full field
+**Text Selection** (Clipboard-based, works in all apps):
+1. Existing selection (Cmd+C) → 2. Paragraph (Shift+Option+Up) → 3. Line (Shift+Cmd+Left) → 4. Prompt user
 
-**Clipboard Fallback** (Chrome, Electron, Google Docs) - backward-only selection:
-1. Existing selection (Cmd+C) → 2. Paragraph (Shift+Cmd+Up) → 3. Line (Shift+Cmd+Left) → 4. Prompt user
+Text is always selected backward from cursor position, then copied via clipboard, corrected, and pasted back.
 
-**Other**: 3-second revert window, "Feedback" button on history items opens email with original/corrected text
+**Other**: Use ⌘Z to undo corrections, "Feedback" button on history items opens email with original/corrected text
 
 ## Commands
 ```bash
