@@ -5,6 +5,11 @@ class TextCorrectionService {
     private let appState: AppState
     private let openAIService = OpenAIService.shared
 
+    // MARK: - Timing Constants
+    private let keyPressDelay: UInt64 = 10_000_000      // 0.01s between key down/up
+    private let selectionDelay: UInt64 = 50_000_000     // 0.05s after selection commands
+    private let clipboardDelay: UInt64 = 80_000_000     // 0.08s for clipboard operations
+
     init(appState: AppState) {
         self.appState = appState
     }
@@ -65,7 +70,7 @@ class TextCorrectionService {
         if case .tooLong = selectionResult {
             // Deselect first - press right arrow to collapse selection back to cursor position
             await simulateKeyPress(keyCode: 124, modifiers: []) // Right arrow
-            try? await Task.sleep(nanoseconds: 50_000_000) // 0.05 seconds
+            try? await Task.sleep(nanoseconds: selectionDelay)
 
             selectionResult = await tryLineSelection(pasteboard: pasteboard, characterLimit: characterLimit)
         }
@@ -152,7 +157,7 @@ class TextCorrectionService {
             await simulateKeyPress(keyCode: 9, modifiers: .maskCommand) // V key
 
             // Small delay to let paste complete
-            try? await Task.sleep(nanoseconds: 80_000_000) // 0.08 seconds
+            try? await Task.sleep(nanoseconds: clipboardDelay)
 
             // Restore original clipboard
             restoreClipboard(pasteboard: pasteboard, savedContent: savedClipboard)
@@ -193,7 +198,7 @@ class TextCorrectionService {
     private func checkExistingSelection(pasteboard: NSPasteboard, characterLimit: Int) async -> SelectionResult {
         pasteboard.clearContents()
         await simulateKeyPress(keyCode: 8, modifiers: .maskCommand) // C key
-        try? await Task.sleep(nanoseconds: 80_000_000) // 0.08 seconds
+        try? await Task.sleep(nanoseconds: clipboardDelay)
 
         guard let text = pasteboard.string(forType: .string), !text.isEmpty else {
             return .noSelection
@@ -210,12 +215,12 @@ class TextCorrectionService {
     private func tryParagraphSelection(pasteboard: NSPasteboard, characterLimit: Int) async -> SelectionResult {
         // Select backward from cursor to start of paragraph
         await simulateKeyPress(keyCode: 126, modifiers: [.maskAlternate, .maskShift]) // Up arrow
-        try? await Task.sleep(nanoseconds: 50_000_000) // 0.05 seconds
+        try? await Task.sleep(nanoseconds: selectionDelay)
 
         // Copy selected text
         pasteboard.clearContents()
         await simulateKeyPress(keyCode: 8, modifiers: .maskCommand) // C key
-        try? await Task.sleep(nanoseconds: 80_000_000) // 0.08 seconds
+        try? await Task.sleep(nanoseconds: clipboardDelay)
 
         guard let text = pasteboard.string(forType: .string), !text.isEmpty else {
             return .noSelection
@@ -232,12 +237,12 @@ class TextCorrectionService {
     private func tryLineSelection(pasteboard: NSPasteboard, characterLimit: Int) async -> SelectionResult {
         // Select backward from cursor to start of line
         await simulateKeyPress(keyCode: 123, modifiers: [.maskCommand, .maskShift]) // Left arrow
-        try? await Task.sleep(nanoseconds: 50_000_000) // 0.05 seconds
+        try? await Task.sleep(nanoseconds: selectionDelay)
 
         // Copy selected text
         pasteboard.clearContents()
         await simulateKeyPress(keyCode: 8, modifiers: .maskCommand) // C key
-        try? await Task.sleep(nanoseconds: 80_000_000) // 0.08 seconds
+        try? await Task.sleep(nanoseconds: clipboardDelay)
 
         guard let text = pasteboard.string(forType: .string), !text.isEmpty else {
             return .noSelection
@@ -260,7 +265,7 @@ class TextCorrectionService {
         }
 
         // Small delay between down and up
-        try? await Task.sleep(nanoseconds: 10_000_000) // 0.01 seconds
+        try? await Task.sleep(nanoseconds: keyPressDelay)
 
         // Key up
         if let keyUp = CGEvent(keyboardEventSource: source, virtualKey: keyCode, keyDown: false) {

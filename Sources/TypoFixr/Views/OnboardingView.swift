@@ -275,7 +275,7 @@ struct APIKeyPage: View {
                     .buttonStyle(.borderless)
                 }
                 
-                if !appState.openAIApiKey.isEmpty && appState.openAIApiKey.hasPrefix("sk-") {
+                if appState.hasValidApiKey {
                     HStack {
                         Image(systemName: "checkmark.circle.fill")
                             .foregroundColor(.green)

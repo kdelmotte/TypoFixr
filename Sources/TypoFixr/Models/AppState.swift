@@ -87,7 +87,12 @@ class AppState: ObservableObject {
             saveApiKey()
         }
     }
-    
+
+    /// Validates that the API key is present and has the expected format
+    var hasValidApiKey: Bool {
+        !openAIApiKey.isEmpty && openAIApiKey.hasPrefix("sk-")
+    }
+
     // MARK: - Database
     let databaseManager = DatabaseManager.shared
     
