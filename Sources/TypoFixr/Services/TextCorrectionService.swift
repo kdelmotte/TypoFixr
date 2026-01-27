@@ -40,6 +40,8 @@ class TextCorrectionService {
     }
 
     // MARK: - Clipboard-based Correction
+    // Uses clipboard (Cmd+C/Cmd+V) for reliability across all apps.
+    // Direct Accessibility API text manipulation is unreliable in many apps.
 
     /// Result of smart text selection
     private enum SelectionResult {

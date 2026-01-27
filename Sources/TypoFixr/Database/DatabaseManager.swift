@@ -133,7 +133,7 @@ class DatabaseManager {
             self.deviceId = newDeviceId
         }
         
-        // Load encryption preference (disabled by default for now)
+        // Load encryption preference (disabled by default - not exposed in UI)
         self.encryptionEnabled = UserDefaults.standard.object(forKey: "encryptionEnabled") as? Bool ?? false
         
         setupDatabase()

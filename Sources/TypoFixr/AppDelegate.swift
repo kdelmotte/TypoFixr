@@ -10,6 +10,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var cancellables = Set<AnyCancellable>()
     private var hotkeyService: HotkeyService!
     private var textCorrectionService: TextCorrectionService!
+    private var permissionPollingTimer: Timer?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Set activation policy FIRST (menu bar app only)
@@ -252,18 +253,27 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true]
         _ = AXIsProcessTrustedWithOptions(options as CFDictionary)
 
+        // Cancel any existing polling
+        permissionPollingTimer?.invalidate()
+
         // Poll for permission granted
-        Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] timer in
+        permissionPollingTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] timer in
             let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: false]
             let trusted = AXIsProcessTrustedWithOptions(options as CFDictionary)
 
             if trusted {
                 timer.invalidate()
+                self?.permissionPollingTimer = nil
                 DispatchQueue.main.async {
                     self?.appState.hasAccessibilityPermission = true
                     self?.appState.setIconState(.normal)
                 }
             }
         }
+    }
+
+    func applicationWillTerminate(_ notification: Notification) {
+        permissionPollingTimer?.invalidate()
+        permissionPollingTimer = nil
     }
 }

@@ -126,7 +126,8 @@ struct WelcomePage: View {
 struct PermissionPage: View {
     @ObservedObject var appState: AppState
     @State private var isChecking = false
-    
+    @State private var permissionTimer: Timer?
+
     var body: some View {
         VStack(spacing: 24) {
             Spacer()
@@ -205,8 +206,12 @@ struct PermissionPage: View {
         .onAppear {
             startPermissionPolling()
         }
+        .onDisappear {
+            permissionTimer?.invalidate()
+            permissionTimer = nil
+        }
     }
-    
+
     private func requestPermission() {
         if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") {
             NSWorkspace.shared.open(url)
@@ -217,13 +222,14 @@ struct PermissionPage: View {
     private func startPermissionPolling() {
         guard !isChecking else { return }
         isChecking = true
-        
-        Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { timer in
+
+        permissionTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [self] timer in
             let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: false]
             let trusted = AXIsProcessTrustedWithOptions(options as CFDictionary)
-            
+
             if trusted {
                 timer.invalidate()
+                permissionTimer = nil
                 isChecking = false
                 DispatchQueue.main.async {
                     appState.hasAccessibilityPermission = true

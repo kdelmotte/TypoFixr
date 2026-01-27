@@ -100,8 +100,10 @@ class SecurityService {
     ]
     
     // MARK: - Public Methods
-    
-    /// Performs comprehensive security check on input text
+
+    /// Performs comprehensive security check on input text.
+    /// Returns `.safe`, `.promptInjectionWarning`, `.sensitiveDataWarning`, or `.blocked`.
+    /// Currently only warnings are surfaced to the user; nothing is blocked.
     func checkText(_ text: String) -> SecurityCheckResult {
         // Check for prompt injection patterns
         let injectionWarnings = detectPromptInjection(text)
