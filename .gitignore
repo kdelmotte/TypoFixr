@@ -36,3 +36,8 @@ xcuserdata/
 # Environment / Secrets
 .env
 *.pem
+
+# Build artifacts
+*.o
+*.d
+*.swiftdeps
