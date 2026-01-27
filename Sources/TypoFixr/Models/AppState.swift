@@ -33,9 +33,6 @@ class AppState: ObservableObject {
     // MARK: - Correction History
     @Published var correctionHistory: [Correction] = []
 
-    // MARK: - Correction Bookmarks
-    var correctionBookmarks: [String: CorrectionBookmark] = [:]
-    
     // MARK: - Settings
     @Published var keyboardShortcut: KeyboardShortcutConfig {
         didSet {
@@ -232,20 +229,7 @@ class AppState: ObservableObject {
             }
         }
     }
-    
-    // MARK: - Bookmark Management
-    func setBookmark(for fieldSignature: String, bookmark: CorrectionBookmark) {
-        correctionBookmarks[fieldSignature] = bookmark
-    }
-    
-    func getBookmark(for fieldSignature: String) -> CorrectionBookmark? {
-        return correctionBookmarks[fieldSignature]
-    }
-    
-    func clearBookmark(for fieldSignature: String) {
-        correctionBookmarks.removeValue(forKey: fieldSignature)
-    }
-    
+
     // MARK: - Persistence Helpers
     private func saveShortcut() {
         if let data = try? JSONEncoder().encode(keyboardShortcut) {
