@@ -57,15 +57,7 @@ class HotkeyService {
     
     private func handleHotkey() {
         DispatchQueue.main.async { [weak self] in
-            guard let self = self else { return }
-            
-            // Check if we should toggle revert
-            if self.appState.canToggleRevert {
-                self.appState.shouldTriggerCorrection = true
-                // The correction service will handle the revert logic
-            } else {
-                self.appState.shouldTriggerCorrection = true
-            }
+            self?.appState.shouldTriggerCorrection = true
         }
     }
     

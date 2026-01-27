@@ -32,12 +32,7 @@ class AppState: ObservableObject {
     
     // MARK: - Correction History
     @Published var correctionHistory: [Correction] = []
-    
-    // MARK: - Revert State
-    @Published var lastCorrectionTime: Date? = nil
-    @Published var canToggleRevert: Bool = false
-    private var revertTimer: Timer?
-    
+
     // MARK: - Correction Bookmarks
     var correctionBookmarks: [String: CorrectionBookmark] = [:]
     
@@ -149,9 +144,6 @@ class AppState: ObservableObject {
         }
         // Save to database
         databaseManager.saveCorrection(correction)
-
-        // Start revert timer
-        startRevertTimer()
     }
 
     func revertCorrection(_ correction: Correction) {
@@ -225,19 +217,6 @@ class AppState: ObservableObject {
         let monthlyTokens = databaseManager.getTotalTokensUsed(since: thisMonth)
         
         return (minuteCount, hourCount, monthlyTokens.input + monthlyTokens.output)
-    }
-    
-    // MARK: - Revert Timer
-    private func startRevertTimer() {
-        lastCorrectionTime = Date()
-        canToggleRevert = true
-
-        revertTimer?.invalidate()
-        revertTimer = Timer.scheduledTimer(withTimeInterval: 3.0, repeats: false) { [weak self] _ in
-            DispatchQueue.main.async {
-                self?.canToggleRevert = false
-            }
-        }
     }
 
     // MARK: - Icon State Management
