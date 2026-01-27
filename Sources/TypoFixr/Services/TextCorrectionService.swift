@@ -97,6 +97,22 @@ class TextCorrectionService {
             return
         }
 
+        // Security check if enabled
+        if appState.securityWarningsEnabled {
+            let securityResult = SecurityService.shared.checkText(textToCorrect)
+            if case .safe = securityResult {
+                // Continue with correction
+            } else if let warning = SecurityService.shared.getWarningMessage(for: securityResult) {
+                let shouldProceed = await showSecurityWarningAlert(title: warning.title, message: warning.message)
+                if !shouldProceed {
+                    appState.isProcessing = false
+                    appState.setIconState(.normal)
+                    restoreClipboard(pasteboard: pasteboard, savedContent: savedClipboard)
+                    return
+                }
+            }
+        }
+
         do {
             // Call OpenAI
             let result = try await openAIService.correctText(
@@ -248,6 +264,23 @@ class TextCorrectionService {
             pasteboard.clearContents()
             if let saved = savedContent {
                 pasteboard.setString(saved, forType: .string)
+            }
+        }
+    }
+
+    /// Shows security warning alert and returns true if user wants to proceed
+    private func showSecurityWarningAlert(title: String, message: String) async -> Bool {
+        return await withCheckedContinuation { continuation in
+            DispatchQueue.main.async {
+                let alert = NSAlert()
+                alert.messageText = title
+                alert.informativeText = message
+                alert.alertStyle = .warning
+                alert.addButton(withTitle: "Cancel")
+                alert.addButton(withTitle: "Send Anyway")
+
+                let response = alert.runModal()
+                continuation.resume(returning: response == .alertSecondButtonReturn)
             }
         }
     }
