@@ -126,6 +126,9 @@ class TextCorrectionService {
             let correctedNormalized = result.correctedText.trimmingCharacters(in: .whitespacesAndNewlines)
             
             if correctedNormalized == originalNormalized {
+                // Deselect text by pressing right arrow (moves cursor to end of selection)
+                await simulateKeyPress(keyCode: 124, modifiers: []) // Right arrow
+
                 appState.isProcessing = false
                 appState.setIconState(.success, autoReset: true)
                 restoreClipboard(pasteboard: pasteboard, savedContent: savedClipboard)
@@ -271,7 +274,10 @@ class TextCorrectionService {
     /// Shows security warning alert and returns true if user wants to proceed
     private func showSecurityWarningAlert(title: String, message: String) async -> Bool {
         return await withCheckedContinuation { continuation in
-            DispatchQueue.main.async {
+            DispatchQueue.main.async { [weak self] in
+                // Prevent settings window from appearing during alert
+                self?.appState.isShowingSecurityAlert = true
+
                 let alert = NSAlert()
                 alert.messageText = title
                 alert.informativeText = message
@@ -279,7 +285,12 @@ class TextCorrectionService {
                 alert.addButton(withTitle: "Cancel")
                 alert.addButton(withTitle: "Send Anyway")
 
+                // Make alert float above everything without activating other app windows
+                alert.window.level = .floating
+
                 let response = alert.runModal()
+
+                self?.appState.isShowingSecurityAlert = false
                 continuation.resume(returning: response == .alertSecondButtonReturn)
             }
         }

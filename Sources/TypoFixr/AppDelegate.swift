@@ -172,11 +172,16 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var settingsWindow: NSWindow?
 
     @objc func showSettings() {
+        // Don't show settings if a security alert is being displayed
+        guard !appState.isShowingSecurityAlert else { return }
+
         // Close popover first
         popover?.performClose(nil)
 
         // Small delay to let popover close
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { [self] in
+            // Check again after delay
+            guard !appState.isShowingSecurityAlert else { return }
             // Close existing settings window if any
             settingsWindow?.close()
             settingsWindow = nil

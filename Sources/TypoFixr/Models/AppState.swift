@@ -26,6 +26,7 @@ class AppState: ObservableObject {
     @Published var shouldTriggerCorrection: Bool = false
     @Published var lastError: String? = nil
     @Published var iconState: MenuBarIconState = .normal
+    @Published var isShowingSecurityAlert: Bool = false
     private var iconResetTimer: Timer?
     
     // MARK: - Correction History
