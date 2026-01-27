@@ -19,6 +19,14 @@ class TextCorrectionService {
             return
         }
 
+        // Check network connectivity
+        guard NetworkMonitor.shared.isConnected else {
+            appState.lastError = "No internet connection"
+            appState.setIconState(.offline)
+            HUDService.shared.show(title: "No Connection", subtitle: "Check your internet", isSuccess: false)
+            return
+        }
+
         // Show processing state
         appState.setIconState(.processing)
 

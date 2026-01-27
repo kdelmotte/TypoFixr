@@ -10,6 +10,7 @@ enum MenuBarIconState {
     case error
     case noPermission
     case rateLimited
+    case offline
 }
 
 class AppState: ObservableObject {

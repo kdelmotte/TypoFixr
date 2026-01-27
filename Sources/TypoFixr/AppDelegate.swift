@@ -53,6 +53,22 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             }
             .store(in: &cancellables)
 
+        // Start network monitoring
+        NetworkMonitor.shared.start()
+
+        // Subscribe to network connectivity changes
+        NetworkMonitor.shared.$isConnected
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] isConnected in
+                guard let self = self else { return }
+                if !isConnected {
+                    self.appState.setIconState(.offline)
+                } else if self.appState.iconState == .offline {
+                    self.appState.setIconState(.normal)
+                }
+            }
+            .store(in: &cancellables)
+
         // Check if onboarding is needed
         if !appState.hasCompletedOnboarding {
             // First launch: show only onboarding, no menu bar yet
@@ -157,6 +173,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             button.image = NSImage(systemSymbolName: "keyboard.badge.exclamationmark", accessibilityDescription: "Permission Required")?.withSymbolConfiguration(config)
         case .rateLimited:
             button.image = NSImage(systemSymbolName: "hand.raised.fill", accessibilityDescription: "Rate Limited")?.withSymbolConfiguration(config)
+        case .offline:
+            button.image = NSImage(systemSymbolName: "wifi.slash", accessibilityDescription: "Offline")?.withSymbolConfiguration(config)
         case .normal:
             button.image = NSImage(systemSymbolName: "keyboard", accessibilityDescription: "TypoFixr")?.withSymbolConfiguration(config)
         }
