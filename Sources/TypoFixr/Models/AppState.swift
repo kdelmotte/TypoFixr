@@ -188,7 +188,7 @@ class AppState: ObservableObject {
         
         // Check spending cap
         if spendingCapEnabled {
-            let thisMonth = Calendar.current.date(from: Calendar.current.dateComponents([.year, .month], from: now))!
+            let thisMonth = Calendar.current.date(from: Calendar.current.dateComponents([.year, .month], from: now)) ?? now
             let monthlyTokens = databaseManager.getTotalTokensUsed(since: thisMonth)
             let totalMonthlyTokens = monthlyTokens.input + monthlyTokens.output
             
@@ -212,8 +212,8 @@ class AppState: ObservableObject {
         let now = Date()
         let oneMinuteAgo = now.addingTimeInterval(-60)
         let oneHourAgo = now.addingTimeInterval(-3600)
-        let thisMonth = Calendar.current.date(from: Calendar.current.dateComponents([.year, .month], from: now))!
-        
+        let thisMonth = Calendar.current.date(from: Calendar.current.dateComponents([.year, .month], from: now)) ?? now
+
         let minuteCount = recentCorrectionTimestamps.filter { $0 > oneMinuteAgo }.count
         let hourCount = recentCorrectionTimestamps.filter { $0 > oneHourAgo }.count
         let monthlyTokens = databaseManager.getTotalTokensUsed(since: thisMonth)
@@ -290,7 +290,7 @@ struct KeyboardShortcutConfig: Codable, Equatable {
 // MARK: - Keychain Helper
 struct KeychainHelper {
     static func save(key: String, value: String) {
-        let data = value.data(using: .utf8)!
+        guard let data = value.data(using: .utf8) else { return }
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrAccount as String: key,

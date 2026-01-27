@@ -68,7 +68,6 @@ struct OnboardingView: View {
             }
             .padding()
         }
-        .frame(width: 500, height: 480)
     }
     
     private var canProceed: Bool {

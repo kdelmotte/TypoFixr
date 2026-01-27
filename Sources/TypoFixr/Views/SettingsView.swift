@@ -1,4 +1,5 @@
 import SwiftUI
+import ServiceManagement
 
 struct SettingsView: View {
     @EnvironmentObject var appState: AppState
@@ -34,7 +35,6 @@ struct SettingsView: View {
                     Label("About", systemImage: "info.circle")
                 }
         }
-        .frame(width: 450, height: 380)
     }
 }
 
@@ -95,12 +95,19 @@ struct GeneralSettingsView: View {
     }
     
     private func setLaunchAtLogin(_ enabled: Bool) {
-        // In a production app, use SMAppService or LaunchAtLogin package
-        UserDefaults.standard.set(enabled, forKey: "launchAtLogin")
+        do {
+            if enabled {
+                try SMAppService.mainApp.register()
+            } else {
+                try SMAppService.mainApp.unregister()
+            }
+        } catch {
+            // Silent failure - user will see toggle doesn't stick
+        }
     }
-    
+
     private func getLaunchAtLogin() -> Bool {
-        UserDefaults.standard.bool(forKey: "launchAtLogin")
+        SMAppService.mainApp.status == .enabled
     }
 }
 

@@ -19,7 +19,6 @@ class HotkeyService {
         
         // Convert our config to HotKey's Key and modifiers
         guard let key = keyCodeToKey(config.keyCode) else {
-            print("Invalid key code: \(config.keyCode)")
             return
         }
         
@@ -42,8 +41,6 @@ class HotkeyService {
         hotKey?.keyDownHandler = { [weak self] in
             self?.handleHotkey()
         }
-        
-        print("Registered hotkey: \(config.displayString)")
     }
     
     func unregisterHotkey() {
