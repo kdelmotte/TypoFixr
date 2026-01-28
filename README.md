@@ -6,13 +6,14 @@ A macOS menu bar app that understands context and fixes your typos and grammar m
 
 - **Instant Corrections**: Press `⌘⇧D` (Command + Shift + D) to fix typos in any text field
 - **Style Preservation**: AI fixes errors while keeping your tone and word choices
-- **Smart Text Selection**: Automatically detects what to fix based on context
-- **Easy Revert**: Press the shortcut again within 3 seconds to undo, or use the history menu
+- **Smart Text Selection**: Automatically selects text backward from cursor (paragraph → line → prompt)
 - **Works Everywhere**: Compatible with most macOS apps (Notes, Mail, Slack, Chrome, etc.)
 - **Multi-language**: Supports 50+ languages with auto-detection
 - **Security Protections**: Detects prompt injection attempts and warns about sensitive data
+- **Offline Detection**: Shows status when network is unavailable
 - **Rate Limiting**: Configurable limits to prevent accidental overuse
 - **Spending Cap**: Set monthly token limits to control API costs
+- **Launch at Login**: Optionally start TypoFixr when you log in
 
 ## Requirements
 
@@ -25,7 +26,8 @@ A macOS menu bar app that understands context and fixes your typos and grammar m
 
 1. **Clone the repository**
    ```bash
-   cd "TypoFixr"
+   git clone https://github.com/kdelmotte/TypoFixr.git
+   cd TypoFixr
    ```
 
 2. **Build the app**
@@ -70,20 +72,18 @@ A macOS menu bar app that understands context and fixes your typos and grammar m
 
 ### Smart Text Selection
 
-TypoFixr intelligently selects what to fix:
+TypoFixr intelligently selects what to fix using a clipboard-based approach:
 
-| Situation | Behavior |
-|-----------|----------|
-| Text is selected | Only selected text is sent for correction |
-| Same field as last fix | Only text typed since last fix is sent |
-| Text > 1000 characters | You're prompted to select specific text |
-| Otherwise | Entire text field is sent |
+| Priority | Behavior |
+|----------|----------|
+| 1. Selected text | If you've highlighted text, only that is corrected |
+| 2. Paragraph | Selects backward from cursor to start of paragraph |
+| 3. Line | If paragraph is too long, selects current line instead |
+| 4. Prompt | If no text found, you're prompted to select text |
 
 ### Reverting Changes
 
-- **Quick revert**: Press the shortcut again within 3 seconds
-- **From history**: Click menu bar icon > Recent Corrections > Revert
-- **System undo**: Use `⌘Z` in most apps
+- **System undo**: Use `⌘Z` in any app to undo the correction
 
 ### Customization
 
@@ -135,7 +135,6 @@ Prevents accidental overuse with configurable limits:
 - **Pass-through**: Text is sent to OpenAI, corrected, and immediately discarded
 - **Local storage**: Correction history is stored locally in SQLite
 - **Secure key storage**: Your API key is stored in macOS Keychain
-- **Optional encryption**: Database encryption available (disabled by default)
 - **Clear anytime**: Delete all history from Settings > Security
 
 ## Development
@@ -151,14 +150,13 @@ TypoFixr/
 │       ├── AppDelegate.swift     # Menu bar setup
 │       ├── Models/
 │       │   ├── AppState.swift    # App state management
-│       │   ├── Correction.swift  # Correction model
-│       │   └── CorrectionBookmark.swift
+│       │   └── Correction.swift  # Correction model
 │       ├── Services/
-│       │   ├── AccessibilityService.swift   # Text capture/replace
+│       │   ├── TextCorrectionService.swift  # Main correction logic
 │       │   ├── OpenAIService.swift          # AI integration
 │       │   ├── HotkeyService.swift          # Keyboard shortcuts
-│       │   ├── TextCorrectionService.swift  # Main correction logic
 │       │   ├── SecurityService.swift        # Security checks
+│       │   ├── NetworkMonitor.swift         # Connectivity detection
 │       │   └── HUDService.swift             # HUD notifications
 │       ├── Database/
 │       │   └── DatabaseManager.swift        # SQLite storage
@@ -169,11 +167,9 @@ TypoFixr/
 │           └── HUDView.swift                # HUD overlay
 └── Tests/
     └── TypoFixrTests/
-        ├── CorrectionTests.swift
-        ├── CorrectionBookmarkTests.swift
         ├── AppStateTests.swift
+        ├── CorrectionTests.swift
         ├── KeyboardShortcutTests.swift
-        ├── CaptureStrategyTests.swift
         ├── SecurityTests.swift
         ├── HUDViewTests.swift
         └── WhitespaceNormalizationTests.swift
@@ -184,6 +180,8 @@ TypoFixr/
 ```bash
 swift test
 ```
+
+Note: Requires Xcode (not just Command Line Tools) for XCTest support.
 
 ### Dependencies
 
@@ -226,7 +224,7 @@ This happens when the AI returns something very different from your input. This 
 
 If you see warnings about sensitive data:
 1. Review the flagged content
-2. Choose "Proceed" if you're sure it's safe
+2. Choose "Send Anyway" if you're sure it's safe
 3. Or "Cancel" to keep your original text
 
 ## Cost Estimation
@@ -244,9 +242,16 @@ MIT License - see LICENSE file for details.
 
 ## Contributing
 
-Contributions are welcome! Please read CONTRIBUTING.md for guidelines.
+Contributions are welcome! Please open an issue or pull request.
 
 ## Changelog
+
+### v1.2.0
+- Removed unused code (encryption, accessibility capture, bookmarks)
+- Implemented Launch at Login properly with SMAppService
+- Added offline detection with network monitoring
+- Fixed timer leaks in permission polling
+- Improved code organization and documentation
 
 ### v1.1.0
 - Added security protections (prompt injection detection, sensitive data warnings)
@@ -261,5 +266,4 @@ Contributions are welcome! Please read CONTRIBUTING.md for guidelines.
 - Initial release
 - Basic typo and grammar correction
 - Smart text selection
-- Revert functionality
 - Multi-language support
