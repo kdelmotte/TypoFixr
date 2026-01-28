@@ -164,10 +164,16 @@ class SecurityService {
             )
             
         case .sensitiveDataWarning(let types):
-            let typeList = types.map { $0.rawValue }.joined(separator: ", ")
+            let typeList = types.map { "• \($0.rawValue)" }.joined(separator: "\n")
             return (
                 "Sensitive Data Detected",
-                "Your text may contain: \(typeList). This will be sent to OpenAI's servers. Continue?"
+                """
+                Your text may contain:
+
+                \(typeList)
+
+                This will be sent to OpenAI's servers. Continue?
+                """
             )
             
         case .blocked(let reason):

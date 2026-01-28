@@ -115,16 +115,37 @@ class TextCorrectionService {
         // Security check if enabled
         if appState.securityWarningsEnabled {
             let securityResult = SecurityService.shared.checkText(textToCorrect)
-            if case .safe = securityResult {
-                // Continue with correction
-            } else if let warning = SecurityService.shared.getWarningMessage(for: securityResult) {
-                let shouldProceed = await showSecurityWarningAlert(title: warning.title, message: warning.message)
-                if !shouldProceed {
-                    appState.isProcessing = false
-                    appState.setIconState(.normal)
-                    restoreClipboard(pasteboard: pasteboard, savedContent: savedClipboard)
-                    return
+
+            switch securityResult {
+            case .safe:
+                break // Continue with correction
+
+            case .promptInjectionWarning(let patterns):
+                // Block completely - no option to proceed
+                appState.isProcessing = false
+                appState.setIconState(.error, autoReset: true)
+                restoreClipboard(pasteboard: pasteboard, savedContent: savedClipboard)
+                await showBlockedAlert(patterns: patterns)
+                return
+
+            case .sensitiveDataWarning:
+                // Allow user choice
+                if let warning = SecurityService.shared.getWarningMessage(for: securityResult) {
+                    let shouldProceed = await showSecurityWarningAlert(title: warning.title, message: warning.message)
+                    if !shouldProceed {
+                        appState.isProcessing = false
+                        appState.setIconState(.normal)
+                        restoreClipboard(pasteboard: pasteboard, savedContent: savedClipboard)
+                        return
+                    }
                 }
+
+            case .blocked:
+                // Reserved for future hard blocks
+                appState.isProcessing = false
+                appState.setIconState(.error, autoReset: true)
+                restoreClipboard(pasteboard: pasteboard, savedContent: savedClipboard)
+                return
             }
         }
 
@@ -339,6 +360,49 @@ class TextCorrectionService {
 
                 self?.appState.isShowingSecurityAlert = false
                 continuation.resume(returning: response == .alertSecondButtonReturn)
+            }
+        }
+    }
+
+    /// Shows a blocking alert for prompt injection attempts (no option to proceed)
+    private func showBlockedAlert(patterns: [String]) async {
+        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+            DispatchQueue.main.async { [weak self] in
+                self?.appState.isShowingSecurityAlert = true
+
+                let alert = NSAlert()
+                alert.messageText = "Request Blocked"
+
+                let patternList = patterns.prefix(3).map { "• \($0)" }.joined(separator: "\n")
+                alert.informativeText = """
+                    Your text contains patterns that could manipulate the AI:
+
+                    \(patternList)
+
+                    This request will not be processed.
+
+                    Not expected? Let us know!
+                    """
+                alert.alertStyle = .warning
+                alert.addButton(withTitle: "OK")
+                alert.addButton(withTitle: "Send Feedback")
+                alert.window.level = .floating
+
+                let response = alert.runModal()
+
+                // If user clicked "Send Feedback", open mail client
+                if response == .alertSecondButtonReturn {
+                    let subject = "TypoFixr False Positive Report"
+                    let body = "Detected patterns: \(patterns.joined(separator: ", "))\n\nPlease describe what you were trying to correct:"
+                    if let encodedSubject = subject.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
+                       let encodedBody = body.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
+                       let url = URL(string: "mailto:feedback@typofixr.com?subject=\(encodedSubject)&body=\(encodedBody)") {
+                        NSWorkspace.shared.open(url)
+                    }
+                }
+
+                self?.appState.isShowingSecurityAlert = false
+                continuation.resume()
             }
         }
     }
