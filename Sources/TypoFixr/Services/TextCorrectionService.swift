@@ -136,10 +136,18 @@ class TextCorrectionService {
                 languagePreference: appState.languagePreference
             )
 
+            // Extract whitespace boundaries from original text to preserve paragraph spacing
+            let (leadingWhitespace, trailingWhitespace) = extractWhitespaceBoundaries(textToCorrect)
+
+            // Apply original whitespace to corrected text
+            let correctedWithWhitespace = leadingWhitespace
+                + result.correctedText.trimmingCharacters(in: .whitespacesAndNewlines)
+                + trailingWhitespace
+
             // Check if text actually changed (ignore insignificant whitespace differences)
             let originalNormalized = textToCorrect.trimmingCharacters(in: .whitespacesAndNewlines)
-            let correctedNormalized = result.correctedText.trimmingCharacters(in: .whitespacesAndNewlines)
-            
+            let correctedNormalized = correctedWithWhitespace.trimmingCharacters(in: .whitespacesAndNewlines)
+
             if correctedNormalized == originalNormalized {
                 // Deselect text by pressing right arrow (moves cursor to end of selection)
                 await simulateKeyPress(keyCode: 124, modifiers: []) // Right arrow
@@ -153,7 +161,7 @@ class TextCorrectionService {
 
             // Put corrected text in clipboard and paste
             pasteboard.clearContents()
-            pasteboard.setString(result.correctedText, forType: .string)
+            pasteboard.setString(correctedWithWhitespace, forType: .string)
 
             // Paste with Cmd+V
             await simulateKeyPress(keyCode: 9, modifiers: .maskCommand) // V key
@@ -167,7 +175,7 @@ class TextCorrectionService {
             // Create correction record
             let correction = Correction(
                 originalText: textToCorrect,
-                correctedText: result.correctedText,
+                correctedText: correctedWithWhitespace,
                 appBundleId: NSWorkspace.shared.frontmostApplication?.bundleIdentifier,
                 inputTokens: result.inputTokens,
                 outputTokens: result.outputTokens
@@ -255,6 +263,13 @@ class TextCorrectionService {
         }
 
         return .success(text)
+    }
+
+    /// Extracts leading and trailing whitespace from text
+    private func extractWhitespaceBoundaries(_ text: String) -> (leading: String, trailing: String) {
+        let leading = String(text.prefix(while: { $0.isWhitespace }))
+        let trailing = String(text.reversed().prefix(while: { $0.isWhitespace }).reversed())
+        return (leading, trailing)
     }
 
     private func simulateKeyPress(keyCode: CGKeyCode, modifiers: CGEventFlags) async {
