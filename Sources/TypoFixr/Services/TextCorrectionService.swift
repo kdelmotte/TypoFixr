@@ -140,8 +140,9 @@ class TextCorrectionService {
             let (leadingWhitespace, trailingWhitespace) = extractWhitespaceBoundaries(textToCorrect)
 
             // Apply original whitespace to corrected text
+            // Strip formatting artifacts (like ">") that Notes.app includes before adding trailing whitespace
             let correctedWithWhitespace = leadingWhitespace
-                + result.correctedText.trimmingCharacters(in: .whitespacesAndNewlines)
+                + stripTrailingFormattingArtifacts(result.correctedText.trimmingCharacters(in: .whitespacesAndNewlines))
                 + trailingWhitespace
 
             // Check if text actually changed (ignore insignificant whitespace differences)
@@ -270,6 +271,22 @@ class TextCorrectionService {
         let leading = String(text.prefix(while: { $0.isWhitespace }))
         let trailing = String(text.reversed().prefix(while: { $0.isWhitespace }).reversed())
         return (leading, trailing)
+    }
+
+    /// Strips trailing formatting artifacts that apps like Notes.app include when copying
+    /// These are markers like ">" (blockquote) that aren't user content
+    /// Only strips ">" since it's the known Notes.app artifact; other markers like "-", "*"
+    /// could be intentional punctuation (e.g., "see above -" or "important *")
+    private func stripTrailingFormattingArtifacts(_ text: String) -> String {
+        var result = text.trimmingCharacters(in: .whitespaces)
+
+        // Strip trailing ">" - Notes.app blockquote artifact
+        // This is safe because sentences almost never legitimately end with ">"
+        while result.hasSuffix(">") {
+            result = String(result.dropLast()).trimmingCharacters(in: .whitespaces)
+        }
+
+        return result
     }
 
     private func simulateKeyPress(keyCode: CGKeyCode, modifiers: CGEventFlags) async {
