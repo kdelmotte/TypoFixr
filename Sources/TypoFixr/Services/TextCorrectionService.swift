@@ -54,7 +54,7 @@ class TextCorrectionService {
     private func performClipboardCorrection() async {
         let pasteboard = NSPasteboard.general
         let savedClipboard = pasteboard.string(forType: .string)
-        let characterLimit = appState.characterLimit
+        let characterLimit = AppState.characterLimit
 
         appState.isProcessing = true
         appState.lastError = nil
@@ -68,16 +68,7 @@ class TextCorrectionService {
             selectionResult = await tryParagraphSelection(pasteboard: pasteboard, characterLimit: characterLimit)
         }
 
-        // Step 3: If paragraph too long, try line selection instead
-        if case .tooLong = selectionResult {
-            // Deselect first - press right arrow to collapse selection back to cursor position
-            await simulateKeyPress(keyCode: 124, modifiers: []) // Right arrow
-            try? await Task.sleep(nanoseconds: selectionDelay)
-
-            selectionResult = await tryLineSelection(pasteboard: pasteboard, characterLimit: characterLimit)
-        }
-
-        // Step 4: If still no selection, try line selection as last resort
+        // Step 3: If still no selection, try line selection as last resort
         if case .noSelection = selectionResult {
             selectionResult = await tryLineSelection(pasteboard: pasteboard, characterLimit: characterLimit)
         }
@@ -92,7 +83,7 @@ class TextCorrectionService {
             appState.isProcessing = false
             appState.setIconState(.error, autoReset: true)
             restoreClipboard(pasteboard: pasteboard, savedContent: savedClipboard)
-            HUDService.shared.show(title: "Text Too Long", subtitle: "Selected \(selected.count) chars (max \(characterLimit))", isSuccess: false)
+            await showTextTooLongAlert(characterCount: selected.count)
             return
 
         case .noSelection:
@@ -400,6 +391,31 @@ class TextCorrectionService {
                         NSWorkspace.shared.open(url)
                     }
                 }
+
+                self?.appState.isShowingSecurityAlert = false
+                continuation.resume()
+            }
+        }
+    }
+
+    /// Shows an alert when selected text exceeds the character limit
+    private func showTextTooLongAlert(characterCount: Int) async {
+        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+            DispatchQueue.main.async { [weak self] in
+                self?.appState.isShowingSecurityAlert = true
+
+                let alert = NSAlert()
+                alert.messageText = "Text Too Long"
+                alert.informativeText = """
+                    Selected text is \(characterCount) characters, which exceeds the \(AppState.characterLimit) character limit.
+
+                    Please highlight a smaller portion of text and try again.
+                    """
+                alert.alertStyle = .warning
+                alert.addButton(withTitle: "OK")
+                alert.window.level = .floating
+
+                _ = alert.runModal()
 
                 self?.appState.isShowingSecurityAlert = false
                 continuation.resume()

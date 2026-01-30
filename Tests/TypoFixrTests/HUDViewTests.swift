@@ -80,14 +80,7 @@ final class HUDViewTests: XCTestCase {
             "No changes message should be positive/encouraging")
     }
     
-    func testTextTooLongMessageFormat() {
-        let characterLimit = 500
-        let subtitle = "Select up to \(characterLimit) characters"
-        XCTAssertTrue(subtitle.contains("500"),
-            "Text too long message should include the character limit")
-        XCTAssertTrue(subtitle.contains("Select"),
-            "Text too long message should guide user to select text")
-    }
+    // Note: "Text Too Long" now uses an alert instead of HUD, so no HUD test needed
     
     func testSelectTextMessageIsActionable() {
         let subtitle = "Highlight text first"

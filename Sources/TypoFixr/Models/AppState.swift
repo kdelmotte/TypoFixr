@@ -34,14 +34,11 @@ class AppState: ObservableObject {
     @Published var correctionHistory: [Correction] = []
 
     // MARK: - Settings
+    static let characterLimit = 5000
+    
     @Published var keyboardShortcut: KeyboardShortcutConfig {
         didSet {
             saveShortcut()
-        }
-    }
-    @Published var characterLimit: Int {
-        didSet {
-            UserDefaults.standard.set(characterLimit, forKey: "characterLimit")
         }
     }
     @Published var languagePreference: String {
@@ -100,7 +97,6 @@ class AppState: ObservableObject {
     init() {
         // Load persisted values
         self.hasCompletedOnboarding = UserDefaults.standard.bool(forKey: "hasCompletedOnboarding")
-        self.characterLimit = UserDefaults.standard.object(forKey: "characterLimit") as? Int ?? 1000
         self.languagePreference = UserDefaults.standard.string(forKey: "languagePreference") ?? "auto"
         
         // Load security & privacy settings

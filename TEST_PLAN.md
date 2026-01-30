@@ -17,7 +17,7 @@ This document defines acceptance criteria for all MVP features. Each test should
 | ID | Test Case | Input | Expected Output |
 |----|-----------|-------|-----------------|
 | TC-1.2.1 | Short text field captured fully | Type "thansk" in empty Slack input, no selection | Full text "thansk" sent |
-| TC-1.2.2 | Character limit respected | Type 600 chars, no selection, limit=500 | Prompt user to select text |
+| TC-1.2.2 | Character limit respected | Type 6000 chars, no selection (limit=5000) | Alert shown asking to select less text |
 | TC-1.2.3 | Empty field handled | Press shortcut on empty field | Show "No text to fix" notification |
 
 ### 1.3 Correction Bookmark System
@@ -129,8 +129,7 @@ This document defines acceptance criteria for all MVP features. Each test should
 | ID | Test Case | Input | Expected Output |
 |----|-----------|-------|-----------------|
 | TC-5.3.1 | Shortcut field works | Click and press new shortcut | Shortcut captured and saved |
-| TC-5.3.2 | Character limit adjustable | Change from 500 to 1000 | New limit applied |
-| TC-5.3.3 | Settings persist | Change settings, quit, relaunch | Settings retained |
+| TC-5.3.2 | Settings persist | Change settings, quit, relaunch | Settings retained |
 
 ---
 
@@ -149,7 +148,7 @@ This document defines acceptance criteria for all MVP features. Each test should
 |----|-----------|-------|-----------------|
 | TC-6.2.1 | Short text fast | "teh" (3 chars) | Response < 500ms |
 | TC-6.2.2 | Medium text acceptable | 200 chars | Response < 1000ms |
-| TC-6.2.3 | Max text within limit | 500 chars | Response < 2000ms |
+| TC-6.2.3 | Large text acceptable | 2000 chars | Response < 3000ms |
 
 ### 6.3 Multi-language
 | ID | Test Case | Input | Expected Output |
@@ -219,8 +218,8 @@ This document defines acceptance criteria for all MVP features. Each test should
 | ID | Test Case | Input | Expected Output |
 |----|-----------|-------|-----------------|
 | TC-9.2.1 | Very short text | "a" | Processed without error |
-| TC-9.2.2 | Exactly at limit | 500 chars | Processed without prompt |
-| TC-9.2.3 | Just over limit | 501 chars | Prompt to select text |
+| TC-9.2.2 | Exactly at limit | 5000 chars | Processed without alert |
+| TC-9.2.3 | Just over limit | 5001 chars | Alert shown asking to select less text |
 | TC-9.2.4 | Special characters | "hello @user #tag $100" | Special chars preserved |
 | TC-9.2.5 | Unicode/emoji | "café ☕ naïve" | Unicode preserved correctly |
 

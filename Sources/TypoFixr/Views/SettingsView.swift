@@ -46,16 +46,6 @@ struct GeneralSettingsView: View {
     var body: some View {
         Form {
             Section {
-                Picker("Character Limit", selection: $appState.characterLimit) {
-                    Text("300 characters").tag(300)
-                    Text("500 characters").tag(500)
-                    Text("750 characters").tag(750)
-                    Text("1000 characters").tag(1000)
-                }
-                .help("Maximum text length before prompting to select specific text")
-            }
-            
-            Section {
                 Toggle("Launch at Login", isOn: $launchAtLogin)
                     .onChange(of: launchAtLogin) { newValue in
                         setLaunchAtLogin(newValue)
