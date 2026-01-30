@@ -4,7 +4,7 @@ class OpenAIService {
     static let shared = OpenAIService()
     
     private let baseURL = "https://api.openai.com/v1/chat/completions"
-    private let model = "gpt-4o"
+    private let model = "gpt-5-mini"
     private let timeout: TimeInterval = 5.0
     
     // Security: Maximum allowed output length multiplier
