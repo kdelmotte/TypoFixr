@@ -3,9 +3,9 @@ import Foundation
 class OpenAIService {
     static let shared = OpenAIService()
     
-    private let baseURL = "https://api.openai.com/v1/chat/completions"
+    private let baseURL = "https://api.openai.com/v1/responses"
     private let model = "gpt-5-mini"
-    private let timeout: TimeInterval = 5.0
+    private let timeout: TimeInterval = 10.0
     
     // Security: Maximum allowed output length multiplier
     private let maxOutputLengthMultiplier = 3.0
@@ -258,12 +258,12 @@ class OpenAIService {
         
         let requestBody: [String: Any] = [
             "model": model,
-            "messages": [
-                ["role": "system", "content": systemPrompt],
+            "input": [
+                ["role": "developer", "content": systemPrompt],
                 ["role": "user", "content": wrappedUserText]
             ],
-            "max_tokens": min(text.count * 2, 1000), // Reasonable limit based on input
-            "temperature": 0.1 // Low temperature for consistent corrections
+            "max_output_tokens": 2000, // Enough for 5000 char max input (~1250 tokens + buffer)
+            "reasoning": ["effort": "minimal"] // Minimize latency for typo fixing
         ]
         
         var request = URLRequest(url: URL(string: baseURL)!)
@@ -294,12 +294,13 @@ class OpenAIService {
             throw OpenAIError.apiError("HTTP \(httpResponse.statusCode)")
         }
         
-        // Parse response
+        // Parse response (Responses API format)
         guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let choices = json["choices"] as? [[String: Any]],
-              let firstChoice = choices.first,
-              let message = firstChoice["message"] as? [String: Any],
-              let content = message["content"] as? String else {
+              let output = json["output"] as? [[String: Any]],
+              let lastOutput = output.last,
+              let contentArray = lastOutput["content"] as? [[String: Any]],
+              let textContent = contentArray.first(where: { $0["type"] as? String == "output_text" }),
+              let content = textContent["text"] as? String else {
             throw OpenAIError.invalidResponse
         }
         
