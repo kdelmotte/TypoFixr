@@ -124,7 +124,7 @@ class AppState: ObservableObject {
         
         // Load API key from Keychain
         self.openAIApiKey = KeychainHelper.load(key: "openai_api_key") ?? ""
-        
+
         // Load recent history from database
         loadRecentHistory()
     }

@@ -2,23 +2,23 @@ import Foundation
 
 class OpenAIService {
     static let shared = OpenAIService()
-    
+
     private let baseURL = "https://api.openai.com/v1/responses"
     private let model = "gpt-5-mini"
     private let timeout: TimeInterval = 10.0
-    
+
     // Security: Maximum allowed output length multiplier
     private let maxOutputLengthMultiplier = 3.0
-    
+
     private init() {}
-    
+
     // MARK: - Response Types
     struct CorrectionResult {
         let correctedText: String
         let inputTokens: Int
         let outputTokens: Int
     }
-    
+
     enum OpenAIError: LocalizedError {
         case noApiKey
         case networkError(Error)
@@ -31,7 +31,7 @@ class OpenAIService {
         case outputTooLong
         case lowSimilarity
         case aiRefused
-        
+
         var errorDescription: String? {
             switch self {
             case .noApiKey:
@@ -59,9 +59,9 @@ class OpenAIService {
             }
         }
     }
-    
+
     // MARK: - Security Validation
-    
+
     /// Patterns that indicate the AI refused to process the request
     private let refusalPatterns: [String] = [
         "i'm sorry",
@@ -83,34 +83,34 @@ class OpenAIService {
         "i'm not able",
         "i am not able",
     ]
-    
+
     /// Patterns that indicate potentially malicious AI output
     private let suspiciousPatterns: [(pattern: String, description: String)] = [
         // Script injection attempts
         ("<script", "script tag"),
         ("javascript:", "javascript URL"),
         ("on\\w+\\s*=", "event handler"),
-        
+
         // Shell command patterns
         ("^\\s*\\$\\s+", "shell prompt"),
         ("sudo\\s+", "sudo command"),
         ("rm\\s+-rf", "dangerous rm command"),
         (";\\s*(curl|wget|bash|sh|python|ruby|perl)\\s+", "command injection"),
         ("\\|\\s*(bash|sh|zsh)", "pipe to shell"),
-        
+
         // AppleScript/macOS specific
         ("osascript", "osascript command"),
         ("do shell script", "AppleScript shell"),
-        
+
         // URL patterns that might be phishing
         ("(https?://[^\\s]+\\.(ru|cn|tk|ml|ga|cf|gq)/)", "suspicious domain"),
     ]
-    
+
     /// Validates AI output for security concerns
     private func validateOutput(_ output: String, originalInput: String) throws {
         let lowerOutput = output.lowercased()
         let lowerInput = originalInput.lowercased()
-        
+
         // 1. Check for AI refusal - but only if these phrases weren't in the original
         // Also check for apostrophe-less versions since typos often omit apostrophes
         // e.g., "i cant" should match "i can't" to avoid false positives
@@ -119,19 +119,19 @@ class OpenAIService {
                 // Check both the exact pattern and the version without apostrophes
                 let patternWithoutApostrophe = pattern.replacingOccurrences(of: "'", with: "")
                 let inputContainsPattern = lowerInput.contains(pattern) || lowerInput.contains(patternWithoutApostrophe)
-                
+
                 if !inputContainsPattern {
                     throw OpenAIError.aiRefused
                 }
             }
         }
-        
+
         // 2. Length validation - output shouldn't be drastically longer than input
         let maxAllowedLength = Int(Double(originalInput.count) * maxOutputLengthMultiplier) + 50
         if output.count > maxAllowedLength {
             throw OpenAIError.outputTooLong
         }
-        
+
         // 3. Check for suspicious patterns
         for (pattern, description) in suspiciousPatterns {
             if let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]),
@@ -139,14 +139,14 @@ class OpenAIService {
                 throw OpenAIError.suspiciousOutput(description)
             }
         }
-        
+
         // 4. Check for non-printable control characters (except common whitespace)
         let allowedControlChars = CharacterSet(charactersIn: "\n\r\t")
         let controlChars = CharacterSet.controlCharacters.subtracting(allowedControlChars)
         if output.unicodeScalars.contains(where: { controlChars.contains($0) }) {
             throw OpenAIError.suspiciousOutput("hidden control characters")
         }
-        
+
         // 5. Similarity check - output should be similar to input (typo fixing doesn't change text drastically)
         // Use a lower threshold (0.3) to allow for texts with many typos while still catching completely different responses
         let similarity = calculateSimilarity(original: originalInput, corrected: output)
@@ -154,7 +154,7 @@ class OpenAIService {
             throw OpenAIError.lowSimilarity
         }
     }
-    
+
     /// Calculates similarity score between two strings (0.0 to 1.0)
     /// Uses word count comparison and character-level Levenshtein distance
     /// which is better suited for typo correction than word-level Jaccard
@@ -163,7 +163,7 @@ class OpenAIService {
         let originalWords = original.split(whereSeparator: { $0.isWhitespace })
         let correctedWords = corrected.split(whereSeparator: { $0.isWhitespace })
         let wordCountDiff = abs(originalWords.count - correctedWords.count)
-        
+
         // If word count is same (±2), likely a valid typo correction
         // This handles cases like "wnet" -> "went" where words look different but count is same
         if wordCountDiff <= 2 {
@@ -175,44 +175,44 @@ class OpenAIService {
                 return max(0.85, charSimilarity)
             }
         }
-        
+
         // Fall back to character-level similarity for other cases
         return characterSimilarity(original: original, corrected: corrected)
     }
-    
+
     /// Calculates character-level similarity using Levenshtein distance ratio
     private func characterSimilarity(original: String, corrected: String) -> Double {
         let maxLen = max(original.count, corrected.count)
         guard maxLen > 0 else { return 1.0 }
-        
+
         let distance = levenshteinDistance(original.lowercased(), corrected.lowercased())
         return 1.0 - (Double(distance) / Double(maxLen))
     }
-    
+
     /// Calculates Levenshtein edit distance between two strings
     private func levenshteinDistance(_ s1: String, _ s2: String) -> Int {
         let s1Array = Array(s1)
         let s2Array = Array(s2)
         let m = s1Array.count
         let n = s2Array.count
-        
+
         // Handle edge cases
         if m == 0 { return n }
         if n == 0 { return m }
-        
+
         // Create distance matrix
         var matrix = [[Int]](repeating: [Int](repeating: 0, count: n + 1), count: m + 1)
-        
+
         // Initialize first column
         for i in 0...m {
             matrix[i][0] = i
         }
-        
+
         // Initialize first row
         for j in 0...n {
             matrix[0][j] = j
         }
-        
+
         // Fill in the rest of the matrix
         for i in 1...m {
             for j in 1...n {
@@ -224,66 +224,67 @@ class OpenAIService {
                 )
             }
         }
-        
+
         return matrix[m][n]
     }
-    
+
     /// Sanitizes output by removing potentially dangerous content and unwanted tags
     private func sanitizeOutput(_ output: String) -> String {
         var sanitized = output
-        
+
         // Strip user_text XML tags that AI might accidentally include
         sanitized = sanitized.replacingOccurrences(of: "<user_text>", with: "", options: .caseInsensitive)
         sanitized = sanitized.replacingOccurrences(of: "</user_text>", with: "", options: .caseInsensitive)
-        
+
         // Remove zero-width characters that could be used for hiding content
         let zeroWidthChars = ["\u{200B}", "\u{200C}", "\u{200D}", "\u{FEFF}", "\u{00AD}"]
         for char in zeroWidthChars {
             sanitized = sanitized.replacingOccurrences(of: char, with: "")
         }
-        
+
         return sanitized.trimmingCharacters(in: .whitespacesAndNewlines)
     }
-    
+
     // MARK: - Correct Text
     func correctText(_ text: String, apiKey: String, languagePreference: String) async throws -> CorrectionResult {
         guard !apiKey.isEmpty else {
             throw OpenAIError.noApiKey
         }
-        
+
         let systemPrompt = buildSystemPrompt(languagePreference: languagePreference)
-        
+
         // Wrap user text in XML tags for prompt injection defense
         let wrappedUserText = "<user_text>\(text)</user_text>"
-        
+
+        // Build Responses API request
         let requestBody: [String: Any] = [
             "model": model,
             "input": [
                 ["role": "developer", "content": systemPrompt],
                 ["role": "user", "content": wrappedUserText]
             ],
-            "max_output_tokens": 2000, // Enough for 5000 char max input (~1250 tokens + buffer)
-            "reasoning": ["effort": "minimal"] // Minimize latency for typo fixing
+            "max_output_tokens": 2000,
+            "reasoning": ["effort": "minimal"]
         ]
-        
+
         var request = URLRequest(url: URL(string: baseURL)!)
         request.httpMethod = "POST"
         request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = try JSONSerialization.data(withJSONObject: requestBody)
         request.timeoutInterval = timeout
-        
+
         let (data, response) = try await URLSession.shared.data(for: request)
-        
+
         guard let httpResponse = response as? HTTPURLResponse else {
             throw OpenAIError.invalidResponse
         }
-        
+
         // Handle rate limiting
         if httpResponse.statusCode == 429 {
             throw OpenAIError.rateLimited
         }
-        
+
         // Handle other errors
         if httpResponse.statusCode != 200 {
             if let errorJson = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
@@ -293,42 +294,48 @@ class OpenAIService {
             }
             throw OpenAIError.apiError("HTTP \(httpResponse.statusCode)")
         }
-        
-        // Parse response (Responses API format)
-        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let output = json["output"] as? [[String: Any]],
-              let lastOutput = output.last,
-              let contentArray = lastOutput["content"] as? [[String: Any]],
-              let textContent = contentArray.first(where: { $0["type"] as? String == "output_text" }),
-              let content = textContent["text"] as? String else {
+
+        // Parse Responses API format
+        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
             throw OpenAIError.invalidResponse
         }
-        
-        // Sanitize and validate the response
-        let sanitizedText = sanitizeOutput(content)
-        
-        if sanitizedText.isEmpty {
-            throw OpenAIError.emptyResponse
-        }
-        
-        // Security validation - check for malicious content
-        try validateOutput(sanitizedText, originalInput: text)
-        
-        // Get token usage
+
+        var content: String?
         var inputTokens = 0
         var outputTokens = 0
+
+        if let output = json["output"] as? [[String: Any]],
+           let lastOutput = output.last,
+           let contentArray = lastOutput["content"] as? [[String: Any]],
+           let textContent = contentArray.first(where: { $0["type"] as? String == "output_text" }) {
+            content = textContent["text"] as? String
+        }
         if let usage = json["usage"] as? [String: Any] {
             inputTokens = usage["prompt_tokens"] as? Int ?? 0
             outputTokens = usage["completion_tokens"] as? Int ?? 0
         }
-        
+
+        guard let finalContent = content else {
+            throw OpenAIError.invalidResponse
+        }
+
+        // Sanitize and validate the response
+        let sanitizedText = sanitizeOutput(finalContent)
+
+        if sanitizedText.isEmpty {
+            throw OpenAIError.emptyResponse
+        }
+
+        // Security validation - check for malicious content
+        try validateOutput(sanitizedText, originalInput: text)
+
         return CorrectionResult(
             correctedText: sanitizedText,
             inputTokens: inputTokens,
             outputTokens: outputTokens
         )
     }
-    
+
     // MARK: - System Prompt
     private func buildSystemPrompt(languagePreference: String) -> String {
         var prompt = """

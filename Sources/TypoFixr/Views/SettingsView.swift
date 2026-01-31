@@ -260,18 +260,18 @@ struct ShortcutRecorderView: View {
 struct APISettingsView: View {
     @EnvironmentObject var appState: AppState
     @State private var showAPIKey = false
-    
+
     var body: some View {
         Form {
             Section {
                 VStack(alignment: .leading, spacing: 12) {
                     Text("OpenAI API Key")
                         .font(.headline)
-                    
+
                     Text("Required to use TypoFixr. Get your API key from platform.openai.com")
                         .font(.caption)
                         .foregroundColor(.secondary)
-                    
+
                     HStack {
                         if showAPIKey {
                             TextField("sk-...", text: $appState.openAIApiKey)
@@ -280,13 +280,13 @@ struct APISettingsView: View {
                             SecureField("sk-...", text: $appState.openAIApiKey)
                                 .textFieldStyle(.roundedBorder)
                         }
-                        
+
                         Button(action: { showAPIKey.toggle() }) {
                             Image(systemName: showAPIKey ? "eye.slash" : "eye")
                         }
                         .buttonStyle(.borderless)
                     }
-                    
+
                     if appState.openAIApiKey.isEmpty {
                         HStack {
                             Image(systemName: "exclamationmark.triangle.fill")
@@ -314,7 +314,7 @@ struct APISettingsView: View {
                     }
                 }
             }
-            
+
             Section {
                 Link("Get API Key", destination: URL(string: "https://platform.openai.com/api-keys")!)
                     .font(.caption)
