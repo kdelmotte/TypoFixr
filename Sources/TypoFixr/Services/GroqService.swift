@@ -256,6 +256,10 @@ class GroqService {
         // Wrap user text in XML tags for prompt injection defense
         let wrappedUserText = "<user_text>\(text)</user_text>"
 
+        // Dynamic max_tokens: output ≈ input for typo fixing
+        // ~4 chars/token + 50 buffer for expansions, capped at 100-2000
+        let maxTokens = min(max(100, (text.count / 4) + 50), 2000)
+
         // Build Chat Completions API request (OpenAI-compatible format)
         let requestBody: [String: Any] = [
             "model": model,
@@ -263,7 +267,7 @@ class GroqService {
                 ["role": "system", "content": systemPrompt],
                 ["role": "user", "content": wrappedUserText]
             ],
-            "max_tokens": 2000,
+            "max_tokens": maxTokens,
             "temperature": 0.3
         ]
 
