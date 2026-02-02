@@ -5,7 +5,7 @@ macOS menu bar app that fixes typos/grammar while preserving writing style. Uses
 ## Tech Stack
 - Swift 5.9+, SwiftUI, macOS 13.0+
 - SQLite.swift (database), HotKey (global shortcuts)
-- API key stored in Keychain
+- API key stored in Keychain (Groq keys start with `gsk_`)
 
 ## Structure
 ```
@@ -47,7 +47,9 @@ Text is always selected backward from cursor position, then copied via clipboard
 
 **Security**: Detects sensitive data (passwords, credit cards, SSNs) and prompt injection patterns before sending to API.
 
-**Other**: Use ⌘Z to undo corrections, Launch at Login works via SMAppService
+**HUD Notifications**: Fixed position in top-right corner of screen
+
+**Other**: Use ⌘Z to undo corrections, Launch at Login works via SMAppService, dynamic max_tokens based on input length
 
 ## Commands
 ```bash

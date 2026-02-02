@@ -18,7 +18,7 @@ A macOS menu bar app that understands context and fixes your typos and grammar m
 ## Requirements
 
 - macOS 13.0 (Ventura) or later
-- OpenAI API key ([get one here](https://platform.openai.com/api-keys))
+- Groq API key ([get one here](https://console.groq.com/keys))
 
 ## Installation
 
@@ -53,9 +53,9 @@ A macOS menu bar app that understands context and fixes your typos and grammar m
    - Go to System Preferences > Privacy & Security > Accessibility
    - Enable TypoFixr in the list
 
-2. **Add Your OpenAI API Key**
+2. **Add Your Groq API Key**
    - Click the menu bar icon > Settings > API
-   - Enter your OpenAI API key
+   - Enter your Groq API key (starts with `gsk_`)
 
 3. **Start Using**
    - Type text in any app
@@ -97,7 +97,7 @@ Click the menu bar icon > Settings:
 - **Keyboard Shortcut**: Change the trigger shortcut (default `⌘⇧D`)
 
 **API Tab:**
-- **API Key**: Enter your OpenAI API key
+- **API Key**: Enter your Groq API key
 
 **Security Tab:**
 - **Security Warnings**: Toggle warnings for sensitive data and prompt injections
@@ -110,7 +110,7 @@ Click the menu bar icon > Settings:
 TypoFixr includes multiple layers of security:
 
 ### Pre-flight Checks
-Before sending text to OpenAI, TypoFixr scans for:
+Before sending text to Groq, TypoFixr scans for:
 - **Prompt Injection Attempts**: Detects patterns like "ignore previous instructions"
 - **Sensitive Data**: Warns about credit card numbers, SSNs, passwords, API keys, emails, and phone numbers
 
@@ -132,7 +132,7 @@ Prevents accidental overuse with configurable limits:
 ## Privacy
 
 - **User-triggered only**: Text is only accessed when you press the shortcut
-- **Pass-through**: Text is sent to OpenAI, corrected, and immediately discarded
+- **Pass-through**: Text is sent to Groq, corrected, and immediately discarded
 - **Local storage**: Correction history is stored locally in SQLite
 - **Secure key storage**: Your API key is stored in macOS Keychain
 - **Clear anytime**: Delete all history from Settings > Security
@@ -153,7 +153,7 @@ TypoFixr/
 │       │   └── Correction.swift  # Correction model
 │       ├── Services/
 │       │   ├── TextCorrectionService.swift  # Main correction logic
-│       │   ├── OpenAIService.swift          # AI integration
+│       │   ├── GroqService.swift             # AI integration
 │       │   ├── HotkeyService.swift          # Keyboard shortcuts
 │       │   ├── SecurityService.swift        # Security checks
 │       │   ├── NetworkMonitor.swift         # Connectivity detection
@@ -210,8 +210,8 @@ Note: Requires Xcode (not just Command Line Tools) for XCTest support.
 
 ### API errors
 
-1. Verify your API key is correct in Settings > API
-2. Check your OpenAI account has available credits
+1. Verify your API key is correct in Settings > API (should start with `gsk_`)
+2. Check your Groq account is active
 3. Ensure you have internet connectivity
 
 ### "Response differed too much" error
@@ -229,10 +229,10 @@ If you see warnings about sensitive data:
 
 ## Cost Estimation
 
-Using OpenAI's gpt-4o-mini model:
-- ~$0.15 per 1M input tokens
-- ~$0.60 per 1M output tokens
-- **Typical usage**: ~$0.50/month for 500 corrections
+Using Groq's llama-3.1-8b-instant model:
+- ~$0.05 per 1M input tokens
+- ~$0.08 per 1M output tokens
+- **Typical usage**: ~$0.01/month for 500 corrections (essentially free)
 
 Use the **Spending Cap** feature in Settings > Security to set monthly limits and monitor usage.
 

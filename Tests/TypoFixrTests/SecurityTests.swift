@@ -502,7 +502,7 @@ final class OutputValidationTests: XCTestCase {
         XCTAssertEqual(similarity, 1.0, "Identical text should have similarity of 1.0")
     }
     
-    // Helper function for similarity - matches the new algorithm in OpenAIService
+    // Helper function for similarity - matches the new algorithm in GroqService
     private func calculateSimilarity(original: String, corrected: String) -> Double {
         // Word count check
         let originalWords = original.split(whereSeparator: { $0.isWhitespace })
