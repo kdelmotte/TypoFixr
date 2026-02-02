@@ -95,7 +95,7 @@ class GroqService {
         ("^\\s*\\$\\s+", "shell prompt"),
         ("sudo\\s+", "sudo command"),
         ("rm\\s+-rf", "dangerous rm command"),
-        (";\\s*(curl|wget|bash|sh|python|ruby|perl)\\s+", "command injection"),
+        ("(?:;|&&|\\|\\|)\\s*(curl|wget|bash|sh|python|ruby|perl)(?:\\s+|$)", "command injection"),
         ("\\|\\s*(bash|sh|zsh)", "pipe to shell"),
 
         // AppleScript/macOS specific

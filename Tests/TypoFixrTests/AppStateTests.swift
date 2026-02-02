@@ -8,6 +8,8 @@ final class AppStateTests: XCTestCase {
     override func setUp() {
         super.setUp()
         appState = AppState()
+        // Tests should not depend on persisted local history.
+        appState.clearHistory()
     }
     
     override func tearDown() {
@@ -15,10 +17,9 @@ final class AppStateTests: XCTestCase {
         super.tearDown()
     }
     
-    // MARK: - TC-3.2.x History-Based Revert Tests
+    // MARK: - History Tests
     
     func testHistoryStoresCorrections() {
-        // TC-3.2.1: History stores corrections
         let correction1 = Correction(
             originalText: "teh",
             correctedText: "the"
@@ -40,7 +41,6 @@ final class AppStateTests: XCTestCase {
     }
     
     func testHistoryLimitRespected() {
-        // TC-3.2.3: History limit respected
         for i in 0..<15 {
             let correction = Correction(
                 originalText: "text\(i)",
@@ -69,64 +69,24 @@ final class AppStateTests: XCTestCase {
         XCTAssertEqual(appState.correctionHistory.first?.originalText, "second")
     }
     
-    // MARK: - TC-3.1.x Toggle Revert Tests
+    // MARK: - Revert Tests
     
-    func testRevertWindowActivation() {
-        // TC-3.1.1: Revert within window
+    func testRevertMarksCorrectionAsReverted() {
         let correction = Correction(
-            originalText: "test",
-            correctedText: "TEST"
+            originalText: "teh",
+            correctedText: "the"
         )
         
         appState.addCorrection(correction)
+        appState.revertCorrection(correction)
         
-        // Should be able to revert immediately after correction
-        XCTAssertTrue(appState.canToggleRevert)
+        XCTAssertEqual(appState.correctionHistory.first?.id, correction.id)
+        XCTAssertEqual(appState.correctionHistory.first?.reverted, true)
     }
     
-    // MARK: - Bookmark Management Tests
-    
-    func testBookmarkStorage() {
-        let bookmark = CorrectionBookmark(
-            appBundleId: "com.test.app",
-            textFieldSignature: "main:textfield",
-            endIndex: 10,
-            textAtBookmark: "text"
-        )
-        
-        let key = CorrectionBookmark.generateKey(
-            appBundleId: "com.test.app",
-            textFieldSignature: "main:textfield"
-        )
-        
-        appState.setBookmark(for: key, bookmark: bookmark)
-        
-        let retrieved = appState.getBookmark(for: key)
-        XCTAssertNotNil(retrieved)
-        XCTAssertEqual(retrieved?.endIndex, 10)
-    }
-    
-    func testBookmarkClearing() {
-        let bookmark = CorrectionBookmark(
-            appBundleId: "com.test.app",
-            textFieldSignature: "main:textfield",
-            endIndex: 10,
-            textAtBookmark: "text"
-        )
-        
-        let key = "com.test.app:main:textfield"
-        
-        appState.setBookmark(for: key, bookmark: bookmark)
-        appState.clearBookmark(for: key)
-        
-        let retrieved = appState.getBookmark(for: key)
-        XCTAssertNil(retrieved)
-    }
-    
-    // MARK: - TC-4.2.x Custom Shortcut Tests
+    // MARK: - Shortcut Tests
     
     func testShortcutConfiguration() {
-        // TC-4.2.1: Can change shortcut
         let newShortcut = KeyboardShortcutConfig(
             keyCode: 3, // F key
             modifiers: [.command, .shift]

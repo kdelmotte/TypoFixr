@@ -3,10 +3,9 @@ import XCTest
 
 final class CorrectionTests: XCTestCase {
     
-    // MARK: - TC-2.1.x Basic Replacement Tests
+    // MARK: - Basic Model Tests
     
     func testCorrectionCreation() {
-        // TC-2.1.1: Simple typo fix - model creation
         let correction = Correction(
             originalText: "teh",
             correctedText: "the"
@@ -40,10 +39,9 @@ final class CorrectionTests: XCTestCase {
         XCTAssertFalse(correction.truncatedOriginal.hasSuffix("..."))
     }
     
-    // MARK: - TC-2.3.x Formatting Preservation Tests
+    // MARK: - Formatting Preservation Tests
     
     func testLineBreaksInCorrection() {
-        // TC-2.3.1: Line breaks preserved
         let textWithLineBreaks = "line1\nline2\nline3"
         let correction = Correction(
             originalText: textWithLineBreaks,

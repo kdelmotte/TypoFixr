@@ -331,95 +331,81 @@ class TextCorrectionService {
     }
 
     /// Shows security warning alert and returns true if user wants to proceed
+    @MainActor
     private func showSecurityWarningAlert(title: String, message: String) async -> Bool {
-        return await withCheckedContinuation { continuation in
-            DispatchQueue.main.async { [weak self] in
-                // Prevent settings window from appearing during alert
-                self?.appState.isShowingSecurityAlert = true
+        // Prevent settings window from appearing during alert
+        appState.isShowingSecurityAlert = true
+        defer { appState.isShowingSecurityAlert = false }
 
-                let alert = NSAlert()
-                alert.messageText = title
-                alert.informativeText = message
-                alert.alertStyle = .warning
-                alert.addButton(withTitle: "Cancel")
-                alert.addButton(withTitle: "Send Anyway")
+        let alert = NSAlert()
+        alert.messageText = title
+        alert.informativeText = message
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: "Cancel")
+        alert.addButton(withTitle: "Send Anyway")
 
-                // Make alert float above everything without activating other app windows
-                alert.window.level = .floating
+        // Make alert float above everything without activating other app windows
+        alert.window.level = .floating
 
-                let response = alert.runModal()
-
-                self?.appState.isShowingSecurityAlert = false
-                continuation.resume(returning: response == .alertSecondButtonReturn)
-            }
-        }
+        let response = alert.runModal()
+        return response == .alertSecondButtonReturn
     }
 
     /// Shows a blocking alert for prompt injection attempts (no option to proceed)
+    @MainActor
     private func showBlockedAlert(patterns: [String]) async {
-        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
-            DispatchQueue.main.async { [weak self] in
-                self?.appState.isShowingSecurityAlert = true
+        appState.isShowingSecurityAlert = true
+        defer { appState.isShowingSecurityAlert = false }
 
-                let alert = NSAlert()
-                alert.messageText = "Request Blocked"
+        let alert = NSAlert()
+        alert.messageText = "Request Blocked"
 
-                let patternList = patterns.prefix(3).map { "• \($0)" }.joined(separator: "\n")
-                alert.informativeText = """
-                    Your text contains patterns that could manipulate the AI:
+        let patternList = patterns.prefix(3).map { "• \($0)" }.joined(separator: "\n")
+        alert.informativeText = """
+            Your text contains patterns that could manipulate the AI:
 
-                    \(patternList)
+            \(patternList)
 
-                    This request will not be processed.
+            This request will not be processed.
 
-                    Not expected? Let us know!
-                    """
-                alert.alertStyle = .warning
-                alert.addButton(withTitle: "OK")
-                alert.addButton(withTitle: "Send Feedback")
-                alert.window.level = .floating
+            Not expected? Let us know!
+            """
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: "OK")
+        alert.addButton(withTitle: "Send Feedback")
+        alert.window.level = .floating
 
-                let response = alert.runModal()
+        let response = alert.runModal()
 
-                // If user clicked "Send Feedback", open mail client
-                if response == .alertSecondButtonReturn {
-                    let subject = "TypoFixr False Positive Report"
-                    let body = "Detected patterns: \(patterns.joined(separator: ", "))\n\nPlease describe what you were trying to correct:"
-                    if let encodedSubject = subject.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
-                       let encodedBody = body.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
-                       let url = URL(string: "mailto:feedback@typofixr.com?subject=\(encodedSubject)&body=\(encodedBody)") {
-                        NSWorkspace.shared.open(url)
-                    }
-                }
-
-                self?.appState.isShowingSecurityAlert = false
-                continuation.resume()
+        // If user clicked "Send Feedback", open mail client
+        if response == .alertSecondButtonReturn {
+            let subject = "TypoFixr False Positive Report"
+            let body = "Detected patterns: \(patterns.joined(separator: ", "))\n\nPlease describe what you were trying to correct:"
+            if let encodedSubject = subject.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
+               let encodedBody = body.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
+               let url = URL(string: "mailto:feedback@typofixr.com?subject=\(encodedSubject)&body=\(encodedBody)") {
+                NSWorkspace.shared.open(url)
             }
         }
     }
 
     /// Shows an alert when selected text exceeds the character limit
+    @MainActor
     private func showTextTooLongAlert(characterCount: Int) async {
-        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
-            DispatchQueue.main.async { [weak self] in
-                self?.appState.isShowingSecurityAlert = true
+        appState.isShowingSecurityAlert = true
+        defer { appState.isShowingSecurityAlert = false }
 
-                let alert = NSAlert()
-                alert.messageText = "Text Too Long"
-                alert.informativeText = """
-                    Selected text is \(characterCount) characters, which exceeds the \(AppState.characterLimit) character limit.
+        let alert = NSAlert()
+        alert.messageText = "Text Too Long"
+        alert.informativeText = """
+            Selected text is \(characterCount) characters, which exceeds the \(AppState.characterLimit) character limit.
 
-                    Please highlight a smaller portion of text and try again.
-                    """
-                alert.alertStyle = .warning
-                alert.addButton(withTitle: "OK")
-                alert.window.level = .floating
+            Please highlight a smaller portion of text and try again.
+            """
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: "OK")
+        alert.window.level = .floating
 
-                _ = alert.runModal()
-
-                self?.appState.isShowingSecurityAlert = false
-                continuation.resume()
-            }
-        }
+        _ = alert.runModal()
     }
 }

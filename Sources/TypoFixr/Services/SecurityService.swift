@@ -43,8 +43,9 @@ class SecurityService {
         ("ignore\\s+(all\\s+)?previous\\s+instructions?", "instruction override"),
         ("ignore\\s+(the\\s+)?(above|system)", "instruction override"),
         ("disregard\\s+(all\\s+)?previous", "instruction override"),
+        ("disregard\\s+(?:your\\s+)?instructions?", "instruction override"),
         ("forget\\s+(all\\s+)?previous", "instruction override"),
-        ("new\\s+instructions?:", "new instructions"),
+        ("new\\s+instructions?\\b:?", "new instructions"),
         ("system\\s*:", "system prompt injection"),
         ("assistant\\s*:", "role injection"),
         ("\\[INST\\]", "instruction tag"),
@@ -75,6 +76,8 @@ class SecurityService {
         (.creditCard, "\\b(?:4[0-9]{12}(?:[0-9]{3})?|5[1-5][0-9]{14}|3[47][0-9]{13}|6(?:011|5[0-9]{2})[0-9]{12})\\b"),
         // Credit card with spaces/dashes
         (.creditCard, "\\b(?:\\d{4}[- ]?){3}\\d{4}\\b"),
+        // Amex 15-digit format with optional separators (e.g., 3782 822463 10005)
+        (.creditCard, "\\b3[47][0-9]{2}[- ]?[0-9]{6}[- ]?[0-9]{5}\\b"),
         
         // Social Security Numbers (various formats)
         (.ssn, "\\b\\d{3}[- ]\\d{2}[- ]\\d{4}\\b"),  // With separators: 123-45-6789 or 123 45 6789
@@ -85,10 +88,12 @@ class SecurityService {
         (.password, "(?:password|passwd|pwd|pass)\\s*(?:is)?\\s*[:=]\\s*\\S+"),
         // Handle typos like "pasword", "passowrd", "passwrod", "passord"
         (.password, "\\bp[ao]ss?w?[oar]*r?d\\s*(?:is)?\\s*[:=]\\s*\\S+"),
+        // Common typo variants with either "is" or ":"/"=" separators
+        (.password, "\\b(?:password|passwd|pwd|pass|pasword|passwrod|passowrd|passord)\\b\\s*(?:is\\s+|[:=]\\s*)\\S+"),
         (.password, "(?:secret|token)\\s*(?:is)?\\s*[:=]\\s*\\S+"),
         
         // API keys (common formats)
-        (.apiKey, "\\b(?:sk-[a-zA-Z0-9]{20,}|gsk_[a-zA-Z0-9]{20,}|api[_-]?key\\s*[:=]\\s*\\S+)\\b"),
+        (.apiKey, "\\b(?:sk-[a-zA-Z0-9]{16,}|gsk_[a-zA-Z0-9]{20,}|api[_-]?key\\s*[:=]\\s*\\S+)\\b"),
         (.apiKey, "\\bAIza[0-9A-Za-z_-]{35}\\b"), // Google API key
         (.apiKey, "\\b[A-Za-z0-9]{32}\\b"), // Generic 32-char key
         
@@ -96,7 +101,7 @@ class SecurityService {
         (.email, "\\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}\\b"),
         
         // Phone numbers (US format)
-        (.phoneNumber, "\\b(?:\\+1[- ]?)?(?:\\([0-9]{3}\\)|[0-9]{3})[- ]?[0-9]{3}[- ]?[0-9]{4}\\b"),
+        (.phoneNumber, "(?<!\\d)(?:\\+1[- ]?)?(?:\\([0-9]{3}\\)|[0-9]{3})[- ]?[0-9]{3}[- ]?[0-9]{4}(?!\\d)"),
     ]
     
     // MARK: - Public Methods

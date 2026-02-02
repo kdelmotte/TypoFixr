@@ -3,10 +3,9 @@ import XCTest
 
 final class KeyboardShortcutTests: XCTestCase {
     
-    // MARK: - TC-4.2.3 Invalid Shortcut Rejection Tests
+    // MARK: - Reserved Shortcut Tests
     
     func testReservedShortcutCopy() {
-        // TC-4.2.3: Invalid shortcut rejected - Cmd+C
         let isReserved = HotkeyService.isReservedShortcut(8, modifiers: [.command])
         XCTAssertTrue(isReserved, "Cmd+C should be reserved")
     }
