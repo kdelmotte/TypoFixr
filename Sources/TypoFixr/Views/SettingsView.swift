@@ -265,19 +265,19 @@ struct APISettingsView: View {
         Form {
             Section {
                 VStack(alignment: .leading, spacing: 12) {
-                    Text("OpenAI API Key")
+                    Text("Groq API Key")
                         .font(.headline)
 
-                    Text("Required to use TypoFixr. Get your API key from platform.openai.com")
+                    Text("Required to use TypoFixr. Get your API key from console.groq.com")
                         .font(.caption)
                         .foregroundColor(.secondary)
 
                     HStack {
                         if showAPIKey {
-                            TextField("sk-...", text: $appState.openAIApiKey)
+                            TextField("gsk_...", text: $appState.groqApiKey)
                                 .textFieldStyle(.roundedBorder)
                         } else {
-                            SecureField("sk-...", text: $appState.openAIApiKey)
+                            SecureField("gsk_...", text: $appState.groqApiKey)
                                 .textFieldStyle(.roundedBorder)
                         }
 
@@ -287,7 +287,7 @@ struct APISettingsView: View {
                         .buttonStyle(.borderless)
                     }
 
-                    if appState.openAIApiKey.isEmpty {
+                    if appState.groqApiKey.isEmpty {
                         HStack {
                             Image(systemName: "exclamationmark.triangle.fill")
                                 .foregroundColor(.orange)
@@ -295,11 +295,11 @@ struct APISettingsView: View {
                                 .font(.caption)
                                 .foregroundColor(.secondary)
                         }
-                    } else if !appState.openAIApiKey.hasPrefix("sk-") {
+                    } else if !appState.groqApiKey.hasPrefix("gsk_") {
                         HStack {
                             Image(systemName: "exclamationmark.triangle.fill")
                                 .foregroundColor(.orange)
-                            Text("API key should start with 'sk-'")
+                            Text("API key should start with 'gsk_'")
                                 .font(.caption)
                                 .foregroundColor(.secondary)
                         }
@@ -316,7 +316,7 @@ struct APISettingsView: View {
             }
 
             Section {
-                Link("Get API Key", destination: URL(string: "https://platform.openai.com/api-keys")!)
+                Link("Get API Key", destination: URL(string: "https://console.groq.com/keys")!)
                     .font(.caption)
             }
         }
@@ -405,12 +405,12 @@ struct SecurityPrivacySettingsView: View {
                     HStack(spacing: 8) {
                         Image(systemName: "info.circle")
                             .foregroundColor(.blue)
-                        Text("Your text is sent to OpenAI for processing")
+                        Text("Your text is sent to Groq for processing")
                             .font(.caption)
                     }
                     
-                    Link("View OpenAI Privacy Policy",
-                         destination: URL(string: "https://openai.com/policies/privacy-policy")!)
+                    Link("View Groq Privacy Policy",
+                         destination: URL(string: "https://groq.com/privacy-policy/")!)
                         .font(.caption)
                 }
             }

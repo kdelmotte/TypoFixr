@@ -75,14 +75,14 @@ struct OnboardingView: View {
         case 1:
             return appState.hasAccessibilityPermission
         case 2:
-            return !appState.openAIApiKey.isEmpty
+            return !appState.groqApiKey.isEmpty
         default:
             return true
         }
     }
     
     private var canFinish: Bool {
-        return appState.hasAccessibilityPermission && !appState.openAIApiKey.isEmpty
+        return appState.hasAccessibilityPermission && !appState.groqApiKey.isEmpty
     }
 }
 
@@ -160,7 +160,7 @@ struct PermissionPage: View {
                         .fontWeight(.medium)
                 }
                 
-                Text("We only access text when you press the keyboard shortcut. Text is sent to OpenAI for correction and immediately discarded. We do not store, log, or retain any of your text.")
+                Text("We only access text when you press the keyboard shortcut. Text is sent to Groq for correction and immediately discarded. We do not store, log, or retain any of your text.")
                     .font(.caption)
                     .foregroundColor(.secondary)
             }
@@ -251,11 +251,11 @@ struct APIKeyPage: View {
                 .font(.system(size: 48))
                 .foregroundColor(.accentColor)
             
-            Text("OpenAI API Key")
+            Text("Groq API Key")
                 .font(.title)
                 .fontWeight(.bold)
             
-            Text("TypoFixr uses OpenAI to intelligently fix your text.\nYou'll need an API key to continue.")
+            Text("TypoFixr uses Groq for ultra-fast text correction.\nYou'll need a free API key to continue.")
                 .font(.body)
                 .multilineTextAlignment(.center)
                 .foregroundColor(.secondary)
@@ -267,10 +267,10 @@ struct APIKeyPage: View {
                 
                 HStack {
                     if showAPIKey {
-                        TextField("sk-...", text: $appState.openAIApiKey)
+                        TextField("gsk_...", text: $appState.groqApiKey)
                             .textFieldStyle(.roundedBorder)
                     } else {
-                        SecureField("sk-...", text: $appState.openAIApiKey)
+                        SecureField("gsk_...", text: $appState.groqApiKey)
                             .textFieldStyle(.roundedBorder)
                     }
                     
@@ -292,10 +292,10 @@ struct APIKeyPage: View {
             }
             .padding(.horizontal, 60)
             
-            Link(destination: URL(string: "https://platform.openai.com/api-keys")!) {
+            Link(destination: URL(string: "https://console.groq.com/keys")!) {
                 HStack {
                     Image(systemName: "arrow.up.right.square")
-                    Text("Get your API key from OpenAI")
+                    Text("Get your free API key from Groq")
                 }
             }
             .font(.callout)
@@ -305,7 +305,7 @@ struct APIKeyPage: View {
                 Text("Estimated Cost")
                     .font(.caption)
                     .fontWeight(.medium)
-                Text("~$0.50/month for typical usage (500 corrections)")
+                Text("Essentially free (~$0.01/month for typical usage)")
                     .font(.caption)
                     .foregroundColor(.secondary)
             }

@@ -1,6 +1,6 @@
 # TypoFixr
 
-macOS menu bar app that fixes typos/grammar while preserving writing style. Uses OpenAI GPT-4o-mini with auto-detected language.
+macOS menu bar app that fixes typos/grammar while preserving writing style. Uses Groq llama-3.1-8b-instant with auto-detected language.
 
 ## Tech Stack
 - Swift 5.9+, SwiftUI, macOS 13.0+
@@ -17,7 +17,7 @@ Sources/TypoFixr/
 │   └── Correction.swift       # Correction data model
 ├── Services/
 │   ├── TextCorrectionService.swift  # Main correction flow (clipboard-based)
-│   ├── OpenAIService.swift    # API calls to OpenAI
+│   ├── GroqService.swift       # API calls to Groq
 │   ├── HotkeyService.swift    # Global keyboard shortcut handling
 │   ├── SecurityService.swift  # Sensitive data detection
 │   ├── NetworkMonitor.swift   # Offline detection

@@ -88,7 +88,7 @@ class SecurityService {
         (.password, "(?:secret|token)\\s*(?:is)?\\s*[:=]\\s*\\S+"),
         
         // API keys (common formats)
-        (.apiKey, "\\b(?:sk-[a-zA-Z0-9]{20,}|api[_-]?key\\s*[:=]\\s*\\S+)\\b"),
+        (.apiKey, "\\b(?:sk-[a-zA-Z0-9]{20,}|gsk_[a-zA-Z0-9]{20,}|api[_-]?key\\s*[:=]\\s*\\S+)\\b"),
         (.apiKey, "\\bAIza[0-9A-Za-z_-]{35}\\b"), // Google API key
         (.apiKey, "\\b[A-Za-z0-9]{32}\\b"), // Generic 32-char key
         
@@ -172,7 +172,7 @@ class SecurityService {
 
                 \(typeList)
 
-                This will be sent to OpenAI's servers. Continue?
+                This will be sent to Groq's servers. Continue?
                 """
             )
             

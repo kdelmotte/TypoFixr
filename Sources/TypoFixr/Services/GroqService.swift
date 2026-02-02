@@ -1,10 +1,10 @@
 import Foundation
 
-class OpenAIService {
-    static let shared = OpenAIService()
+class GroqService {
+    static let shared = GroqService()
 
-    private let baseURL = "https://api.openai.com/v1/responses"
-    private let model = "gpt-5-mini"
+    private let baseURL = "https://api.groq.com/openai/v1/chat/completions"
+    private let model = "llama-3.1-8b-instant"
     private let timeout: TimeInterval = 10.0
 
     // Security: Maximum allowed output length multiplier
@@ -19,7 +19,7 @@ class OpenAIService {
         let outputTokens: Int
     }
 
-    enum OpenAIError: LocalizedError {
+    enum APIError: LocalizedError {
         case noApiKey
         case networkError(Error)
         case timeout
@@ -35,7 +35,7 @@ class OpenAIService {
         var errorDescription: String? {
             switch self {
             case .noApiKey:
-                return "OpenAI API key not configured. Please add your API key in Settings."
+                return "Groq API key not configured. Please add your API key in Settings."
             case .networkError(let error):
                 return "Network error: \(error.localizedDescription)"
             case .timeout:
@@ -121,7 +121,7 @@ class OpenAIService {
                 let inputContainsPattern = lowerInput.contains(pattern) || lowerInput.contains(patternWithoutApostrophe)
 
                 if !inputContainsPattern {
-                    throw OpenAIError.aiRefused
+                    throw APIError.aiRefused
                 }
             }
         }
@@ -129,14 +129,14 @@ class OpenAIService {
         // 2. Length validation - output shouldn't be drastically longer than input
         let maxAllowedLength = Int(Double(originalInput.count) * maxOutputLengthMultiplier) + 50
         if output.count > maxAllowedLength {
-            throw OpenAIError.outputTooLong
+            throw APIError.outputTooLong
         }
 
         // 3. Check for suspicious patterns
         for (pattern, description) in suspiciousPatterns {
             if let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]),
                regex.firstMatch(in: output, options: [], range: NSRange(output.startIndex..., in: output)) != nil {
-                throw OpenAIError.suspiciousOutput(description)
+                throw APIError.suspiciousOutput(description)
             }
         }
 
@@ -144,14 +144,14 @@ class OpenAIService {
         let allowedControlChars = CharacterSet(charactersIn: "\n\r\t")
         let controlChars = CharacterSet.controlCharacters.subtracting(allowedControlChars)
         if output.unicodeScalars.contains(where: { controlChars.contains($0) }) {
-            throw OpenAIError.suspiciousOutput("hidden control characters")
+            throw APIError.suspiciousOutput("hidden control characters")
         }
 
         // 5. Similarity check - output should be similar to input (typo fixing doesn't change text drastically)
         // Use a lower threshold (0.3) to allow for texts with many typos while still catching completely different responses
         let similarity = calculateSimilarity(original: originalInput, corrected: output)
         if similarity < 0.3 {
-            throw OpenAIError.lowSimilarity
+            throw APIError.lowSimilarity
         }
     }
 
@@ -248,7 +248,7 @@ class OpenAIService {
     // MARK: - Correct Text
     func correctText(_ text: String, apiKey: String, languagePreference: String) async throws -> CorrectionResult {
         guard !apiKey.isEmpty else {
-            throw OpenAIError.noApiKey
+            throw APIError.noApiKey
         }
 
         let systemPrompt = buildSystemPrompt(languagePreference: languagePreference)
@@ -256,15 +256,15 @@ class OpenAIService {
         // Wrap user text in XML tags for prompt injection defense
         let wrappedUserText = "<user_text>\(text)</user_text>"
 
-        // Build Responses API request
+        // Build Chat Completions API request (OpenAI-compatible format)
         let requestBody: [String: Any] = [
             "model": model,
-            "input": [
-                ["role": "developer", "content": systemPrompt],
+            "messages": [
+                ["role": "system", "content": systemPrompt],
                 ["role": "user", "content": wrappedUserText]
             ],
-            "max_output_tokens": 2000,
-            "reasoning": ["effort": "minimal"]
+            "max_tokens": 2000,
+            "temperature": 0.3
         ]
 
         var request = URLRequest(url: URL(string: baseURL)!)
@@ -277,12 +277,12 @@ class OpenAIService {
         let (data, response) = try await URLSession.shared.data(for: request)
 
         guard let httpResponse = response as? HTTPURLResponse else {
-            throw OpenAIError.invalidResponse
+            throw APIError.invalidResponse
         }
 
         // Handle rate limiting
         if httpResponse.statusCode == 429 {
-            throw OpenAIError.rateLimited
+            throw APIError.rateLimited
         }
 
         // Handle other errors
@@ -290,25 +290,25 @@ class OpenAIService {
             if let errorJson = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
                let error = errorJson["error"] as? [String: Any],
                let message = error["message"] as? String {
-                throw OpenAIError.apiError(message)
+                throw APIError.apiError(message)
             }
-            throw OpenAIError.apiError("HTTP \(httpResponse.statusCode)")
+            throw APIError.apiError("HTTP \(httpResponse.statusCode)")
         }
 
-        // Parse Responses API format
+        // Parse Chat Completions API format
         guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-            throw OpenAIError.invalidResponse
+            throw APIError.invalidResponse
         }
 
         var content: String?
         var inputTokens = 0
         var outputTokens = 0
 
-        if let output = json["output"] as? [[String: Any]],
-           let lastOutput = output.last,
-           let contentArray = lastOutput["content"] as? [[String: Any]],
-           let textContent = contentArray.first(where: { $0["type"] as? String == "output_text" }) {
-            content = textContent["text"] as? String
+        // Extract content from choices[0].message.content
+        if let choices = json["choices"] as? [[String: Any]],
+           let firstChoice = choices.first,
+           let message = firstChoice["message"] as? [String: Any] {
+            content = message["content"] as? String
         }
         if let usage = json["usage"] as? [String: Any] {
             inputTokens = usage["prompt_tokens"] as? Int ?? 0
@@ -316,14 +316,14 @@ class OpenAIService {
         }
 
         guard let finalContent = content else {
-            throw OpenAIError.invalidResponse
+            throw APIError.invalidResponse
         }
 
         // Sanitize and validate the response
         let sanitizedText = sanitizeOutput(finalContent)
 
         if sanitizedText.isEmpty {
-            throw OpenAIError.emptyResponse
+            throw APIError.emptyResponse
         }
 
         // Security validation - check for malicious content

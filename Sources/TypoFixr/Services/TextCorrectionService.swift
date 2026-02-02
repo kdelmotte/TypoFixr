@@ -3,7 +3,7 @@ import AppKit
 
 class TextCorrectionService {
     private let appState: AppState
-    private let openAIService = OpenAIService.shared
+    private let groqService = GroqService.shared
 
     // MARK: - Timing Constants
     private let keyPressDelay: UInt64 = 10_000_000      // 0.01s between key down/up
@@ -141,10 +141,10 @@ class TextCorrectionService {
         }
 
         do {
-            // Call OpenAI
-            let result = try await openAIService.correctText(
+            // Call Groq API
+            let result = try await groqService.correctText(
                 textToCorrect,
-                apiKey: appState.openAIApiKey,
+                apiKey: appState.groqApiKey,
                 languagePreference: appState.languagePreference
             )
 
@@ -200,7 +200,7 @@ class TextCorrectionService {
             appState.setIconState(.success, autoReset: true)
             HUDService.shared.show(title: "Fixed!", subtitle: "⌘Z to undo", isSuccess: true)
 
-        } catch let error as OpenAIService.OpenAIError {
+        } catch let error as GroqService.APIError {
             appState.lastError = error.localizedDescription
             appState.setIconState(.error, autoReset: true)
             HUDService.shared.show(title: "Error", subtitle: error.localizedDescription, isSuccess: false)

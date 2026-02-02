@@ -79,7 +79,7 @@ class AppState: ObservableObject {
     }
     
     // MARK: - API Configuration
-    @Published var openAIApiKey: String {
+    @Published var groqApiKey: String {
         didSet {
             saveApiKey()
         }
@@ -87,7 +87,7 @@ class AppState: ObservableObject {
 
     /// Validates that the API key is present and has the expected format
     var hasValidApiKey: Bool {
-        !openAIApiKey.isEmpty && openAIApiKey.hasPrefix("sk-")
+        !groqApiKey.isEmpty && groqApiKey.hasPrefix("gsk_")
     }
 
     // MARK: - Database
@@ -123,7 +123,7 @@ class AppState: ObservableObject {
         }
         
         // Load API key from Keychain
-        self.openAIApiKey = KeychainHelper.load(key: "openai_api_key") ?? ""
+        self.groqApiKey = KeychainHelper.load(key: "groq_api_key") ?? ""
 
         // Load recent history from database
         loadRecentHistory()
@@ -239,7 +239,7 @@ class AppState: ObservableObject {
     }
     
     private func saveApiKey() {
-        KeychainHelper.save(key: "openai_api_key", value: openAIApiKey)
+        KeychainHelper.save(key: "groq_api_key", value: groqApiKey)
     }
 }
 
