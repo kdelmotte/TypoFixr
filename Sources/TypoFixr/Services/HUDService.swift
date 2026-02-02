@@ -110,40 +110,14 @@ class HUDService {
     }
     
     private func positionWindow(_ window: NSWindow) {
-        // Get the mouse cursor location
-        let mouseLocation = NSEvent.mouseLocation
-        
-        // Get the screen containing the mouse
-        guard let screen = NSScreen.screens.first(where: { NSMouseInRect(mouseLocation, $0.frame, false) }) ?? NSScreen.main else {
-            return
-        }
-        
-        let windowSize = window.frame.size
+        guard let screen = NSScreen.main else { return }
         let screenFrame = screen.visibleFrame
-        
-        // Position below and centered on the cursor
-        var x = mouseLocation.x - (windowSize.width / 2)
-        var y = mouseLocation.y - windowSize.height - 50 // 50px below cursor
-        
-        // Ensure the window stays within screen bounds
-        // Left edge
-        if x < screenFrame.minX + 10 {
-            x = screenFrame.minX + 10
-        }
-        // Right edge
-        if x + windowSize.width > screenFrame.maxX - 10 {
-            x = screenFrame.maxX - windowSize.width - 10
-        }
-        // Bottom edge
-        if y < screenFrame.minY + 10 {
-            // If below cursor would go off screen, show above cursor instead
-            y = mouseLocation.y + 20
-        }
-        // Top edge
-        if y + windowSize.height > screenFrame.maxY - 10 {
-            y = screenFrame.maxY - windowSize.height - 10
-        }
-        
+        let windowSize = window.frame.size
+
+        // Top-right corner with padding
+        let x = screenFrame.maxX - windowSize.width - 20
+        let y = screenFrame.maxY - windowSize.height - 20
+
         window.setFrameOrigin(NSPoint(x: x, y: y))
     }
 }
