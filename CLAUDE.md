@@ -53,11 +53,8 @@ Text is always selected backward from cursor position, then copied via clipboard
 ```bash
 swift build -c release                    # Build
 swift test                                # Run tests
-pkill -f "TypoFixr"; cp .build/release/TypoFixr ~/Applications/TypoFixr.app/Contents/MacOS/; codesign --force --deep --sign - ~/Applications/TypoFixr.app; open ~/Applications/TypoFixr.app  # Deploy
-
-# Reset for testing
-defaults write com.typofixr.app hasCompletedOnboarding -bool false
-defaults delete com.typofixr.app keyboardShortcut
+# Deploy (always reset to onboarding first)
+defaults write com.typofixr.app hasCompletedOnboarding -bool false; defaults delete com.typofixr.app keyboardShortcut 2>/dev/null; pkill -f "TypoFixr"; cp .build/release/TypoFixr ~/Applications/TypoFixr.app/Contents/MacOS/; codesign --force --deep --sign - ~/Applications/TypoFixr.app; open ~/Applications/TypoFixr.app
 ```
 
 ## Gotchas
