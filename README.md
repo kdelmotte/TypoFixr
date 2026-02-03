@@ -183,6 +183,14 @@ swift test
 
 Note: Requires Xcode (not just Command Line Tools) for XCTest support.
 
+### Dev Helper
+
+Restart TypoFixr and force onboarding to appear again:
+
+```bash
+bash scripts/restart-onboarding.sh
+```
+
 ### Dependencies
 
 - [SQLite.swift](https://github.com/stephencelis/SQLite.swift) - Database
