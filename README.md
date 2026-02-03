@@ -246,6 +246,12 @@ Contributions are welcome! Please open an issue or pull request.
 
 ## Changelog
 
+### v1.2.1
+- Improved contextual typo disambiguation in system prompt (better handling of garbled tokens like note/not)
+- Switched Groq request decoding to deterministic settings (`temperature=0`, `top_p=1`, `n=1`) for identical-input consistency
+- Added prompt version traceability (`v2-contextual-deterministic`) in debug logs
+- Added unit tests for prompt contract and deterministic request configuration
+
 ### v1.2.0
 - Removed unused code (encryption, accessibility capture, bookmarks)
 - Implemented Launch at Login properly with SMAppService

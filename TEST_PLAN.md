@@ -133,7 +133,7 @@ This document defines acceptance criteria for all MVP features. Each test should
 
 ---
 
-## 6. OpenAI Integration Tests
+## 6. AI Integration Tests (Groq)
 
 ### 6.1 API Communication
 | ID | Test Case | Input | Expected Output |
@@ -157,6 +157,30 @@ This document defines acceptance criteria for all MVP features. Each test should
 | TC-6.3.2 | Spanish | "holla como estas" | "Hola, ¿cómo estás?" |
 | TC-6.3.3 | German | "ich gehe nach hause" | Properly corrected German |
 | TC-6.3.4 | Mixed language | "Hey, ça va bien?" | Both languages preserved |
+
+### 6.4 Deterministic and Contextual Disambiguation
+| ID | Test Case | Input | Expected Output |
+|----|-----------|-------|-----------------|
+| TC-6.4.1 | Identical input is stable across retries | Run same input 20x in a row | Output text is identical each run |
+| TC-6.4.2 | Core note/not ambiguity regression | "The si the foithb ntot" | Corrected text contains "note" (not "not") |
+| TC-6.4.3 | Deterministic decode config is present | Inspect request body in unit test | `temperature=0`, `top_p=1`, `n=1` |
+| TC-6.4.4 | Contextual prompt contract is present | Inspect system prompt in unit test | Prompt includes contextual disambiguation rules and examples |
+
+### 6.5 Ambiguous Phrase Regression Set (Manual)
+Run each phrase at least 5 times and record pass/fail consistency.
+
+| ID | Input Phrase | Expected Check |
+|----|--------------|----------------|
+| TC-6.5.1 | "The si the foithb ntot" | Output contains "fourth note" |
+| TC-6.5.2 | "This is teh fith ntot" | Output contains "fifth note" |
+| TC-6.5.3 | "I left a ntot on your desk" | Output contains "note" |
+| TC-6.5.4 | "Pleas raed teh ntot befor class" | Output contains "read the note before class" |
+| TC-6.5.5 | "write a quik ntot for me" | Output contains "quick note" |
+| TC-6.5.6 | "I made a shrot ntot" | Output contains "short note" |
+| TC-6.5.7 | "I cnat find teh file" | Output contains "can't find the file" |
+| TC-6.5.8 | "we shoudl meet tmrw" | Output contains "should meet tomorrow" |
+| TC-6.5.9 | "he siad he woudl come" | Output contains "said he would come" |
+| TC-6.5.10 | "send teh meting ntos soon" | Output contains "meeting notes" |
 
 ---
 
@@ -255,7 +279,7 @@ This document defines acceptance criteria for all MVP features. Each test should
 - [ ] All TC-3.x (Undo/Revert) passing
 - [ ] All TC-4.x (Keyboard Shortcut) passing
 - [ ] All TC-5.x (Menu Bar UI) passing
-- [ ] All TC-6.x (OpenAI Integration) passing
+- [ ] All TC-6.x (AI Integration) passing
 - [ ] All TC-7.x (SQLite Database) passing
 - [ ] All TC-8.x (Accessibility Permission) passing
 - [ ] All TC-9.x (Edge Cases) passing
@@ -275,11 +299,13 @@ This document defines acceptance criteria for all MVP features. Each test should
 - TC-2.x (Text replacement logic - mock API)
 - TC-3.1.x (Toggle timing logic)
 - TC-6.2.x (Response timing)
+- TC-6.4.3, TC-6.4.4 (deterministic decode and prompt contract)
 - TC-7.x (Database operations)
 
 ### Manual Testing Required
 - TC-1.1.x, TC-1.2.x (Cross-app text capture)
 - TC-4.x (Global keyboard shortcuts)
 - TC-5.x (UI visual verification)
+- TC-6.4.1, TC-6.4.2, TC-6.5.x (determinism and ambiguity regression)
 - TC-8.x (System permission flow)
 - TC-10.x (App compatibility)
