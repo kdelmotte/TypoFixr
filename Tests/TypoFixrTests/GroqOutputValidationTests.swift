@@ -258,3 +258,54 @@ final class GroqOutputValidationTests: XCTestCase {
         return output.count <= maxAllowedLength
     }
 }
+
+final class ListArtifactNormalizationTests: XCTestCase {
+
+    func testRemovesChecklistArtifactFromDashListLine() {
+        let original = "- buy milk"
+        let output = "- [ ] buy milk"
+
+        let normalized = GroqService.normalizeLeadingListArtifacts(originalInput: original, output: output)
+        XCTAssertEqual(normalized, "- buy milk")
+    }
+
+    func testRemovesDuplicateDashMarkerFromDashListLine() {
+        let original = "- call mom"
+        let output = "- - call mom"
+
+        let normalized = GroqService.normalizeLeadingListArtifacts(originalInput: original, output: output)
+        XCTAssertEqual(normalized, "- call mom")
+    }
+
+    func testConvertsChecklistArtifactToOriginalBulletPrefix() {
+        let original = "• finish report"
+        let output = "- [ ] finish report"
+
+        let normalized = GroqService.normalizeLeadingListArtifacts(originalInput: original, output: output)
+        XCTAssertEqual(normalized, "• finish report")
+    }
+
+    func testPreservesOriginalChecklistItems() {
+        let original = "- [ ] prepare slides"
+        let output = "- [ ] prepare slides"
+
+        let normalized = GroqService.normalizeLeadingListArtifacts(originalInput: original, output: output)
+        XCTAssertEqual(normalized, "- [ ] prepare slides")
+    }
+
+    func testRemovesChecklistArtifactWhenOriginalHasNoListMarker() {
+        let original = "buy milk"
+        let output = "- [ ] buy milk"
+
+        let normalized = GroqService.normalizeLeadingListArtifacts(originalInput: original, output: output)
+        XCTAssertEqual(normalized, "buy milk")
+    }
+
+    func testRemovesBareChecklistArtifactWhenOriginalHasNoListMarker() {
+        let original = "buy milk"
+        let output = "[ ] buy milk"
+
+        let normalized = GroqService.normalizeLeadingListArtifacts(originalInput: original, output: output)
+        XCTAssertEqual(normalized, "buy milk")
+    }
+}

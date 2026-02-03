@@ -5,6 +5,12 @@ class TextCorrectionService {
     private let appState: AppState
     private let groqService = GroqService.shared
 
+    enum SelectionSource: Equatable {
+        case existingSelection
+        case paragraphFallback
+        case lineFallback
+    }
+
     // MARK: - Timing Constants
     private let keyPressDelay: UInt64 = 10_000_000      // 0.01s between key down/up
     private let selectionDelay: UInt64 = 50_000_000     // 0.05s after selection commands
@@ -45,7 +51,7 @@ class TextCorrectionService {
 
     /// Result of smart text selection
     private enum SelectionResult {
-        case success(String)
+        case success(text: String, source: SelectionSource)
         case tooLong(selected: String)
         case noSelection
     }
@@ -54,6 +60,7 @@ class TextCorrectionService {
     private func performClipboardCorrection() async {
         let pasteboard = NSPasteboard.general
         let savedClipboard = pasteboard.string(forType: .string)
+        let frontmostAppBundleId = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
         let characterLimit = AppState.characterLimit
 
         appState.isProcessing = true
@@ -74,10 +81,12 @@ class TextCorrectionService {
         }
 
         // Handle the result
-        let textToCorrect: String
+        let rawTextToCorrect: String
+        let selectionSource: SelectionSource
         switch selectionResult {
-        case .success(let text):
-            textToCorrect = text
+        case .success(let text, let source):
+            rawTextToCorrect = text
+            selectionSource = source
 
         case .tooLong(let selected):
             appState.isProcessing = false
@@ -93,6 +102,12 @@ class TextCorrectionService {
             HUDService.shared.show(title: "Select Text", subtitle: "Highlight text first", isSuccess: false)
             return
         }
+
+        let textToCorrect = Self.normalizeCapturedTextForCorrection(
+            text: rawTextToCorrect,
+            appBundleId: frontmostAppBundleId,
+            source: selectionSource
+        )
 
         // Verify we have text
         guard !textToCorrect.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
@@ -189,7 +204,7 @@ class TextCorrectionService {
             let correction = Correction(
                 originalText: textToCorrect,
                 correctedText: correctedWithWhitespace,
-                appBundleId: NSWorkspace.shared.frontmostApplication?.bundleIdentifier,
+                appBundleId: frontmostAppBundleId,
                 inputTokens: result.inputTokens,
                 outputTokens: result.outputTokens
             )
@@ -231,7 +246,7 @@ class TextCorrectionService {
             return .tooLong(selected: text)
         }
 
-        return .success(text)
+        return .success(text: text, source: .existingSelection)
     }
 
     /// Try to select text BEFORE cursor to start of paragraph (Shift+Option+Up)
@@ -253,7 +268,7 @@ class TextCorrectionService {
             return .tooLong(selected: text)
         }
 
-        return .success(text)
+        return .success(text: text, source: .paragraphFallback)
     }
 
     /// Try to select text BEFORE cursor to start of line (Shift+Cmd+Left)
@@ -275,7 +290,49 @@ class TextCorrectionService {
             return .tooLong(selected: text)
         }
 
-        return .success(text)
+        return .success(text: text, source: .lineFallback)
+    }
+
+    // MARK: - Notes Input Normalization
+
+    /// Normalizes copied text before correction to remove Notes-specific auto-selection artifacts.
+    /// Only applies to Apple Notes paragraph/line fallback capture; manual selections are preserved.
+    static func normalizeCapturedTextForCorrection(text: String, appBundleId: String?, source: SelectionSource) -> String {
+        guard appBundleId == "com.apple.Notes" else { return text }
+
+        switch source {
+        case .existingSelection:
+            return text
+        case .paragraphFallback, .lineFallback:
+            break
+        }
+
+        let patterns = [
+            #"^\s*[-*•–—]\s*\[(?: |x|X)\]\s+"#,
+            #"^\s*\[(?: |x|X)\]\s+"#,
+            #"^\s*[-*•–—]\s+"#
+        ]
+
+        for pattern in patterns {
+            if let updatedText = replacingFirstRegexMatchIfFound(in: text, pattern: pattern, with: "") {
+                return updatedText
+            }
+        }
+
+        return text
+    }
+
+    private static func replacingFirstRegexMatchIfFound(in text: String, pattern: String, with replacement: String) -> String? {
+        guard let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) else {
+            return nil
+        }
+
+        let fullRange = NSRange(text.startIndex..., in: text)
+        guard let match = regex.firstMatch(in: text, options: [], range: fullRange) else {
+            return nil
+        }
+
+        return regex.stringByReplacingMatches(in: text, options: [], range: match.range, withTemplate: replacement)
     }
 
     /// Extracts leading and trailing whitespace from text

@@ -263,23 +263,8 @@ class GroqService {
             sanitized = String(sanitized.dropFirst())
         }
 
-        // Strip extra leading bullets/spaces/tabs that model added but weren't in original
-        // Common issue: model adds "- " or "• " or replaces "-" with "•" before the actual content
-        if !originalInput.isEmpty && !sanitized.isEmpty {
-            // Characters the model might incorrectly add/change at the start
-            let listPrefixChars = CharacterSet(charactersIn: "-*•–— \t")
-
-            // Get the leading "list prefix" from both strings (bullets, spaces, tabs)
-            let originalPrefix = String(originalInput.prefix(while: { $0.unicodeScalars.allSatisfy { listPrefixChars.contains($0) } }))
-            let outputPrefix = String(sanitized.prefix(while: { $0.unicodeScalars.allSatisfy { listPrefixChars.contains($0) } }))
-
-            // If prefixes differ (model changed/added bullets), restore the original prefix
-            if outputPrefix != originalPrefix {
-                // Strip the output's prefix entirely, then prepend the original's prefix
-                let withoutPrefix = String(sanitized.dropFirst(outputPrefix.count))
-                sanitized = originalPrefix + withoutPrefix
-            }
-        }
+        // Normalize list-prefix artifacts often seen with Apple Notes list items.
+        sanitized = Self.normalizeLeadingListArtifacts(originalInput: originalInput, output: sanitized)
 
         // Strip closing tags and partial tags at END only
         // Don't trim whitespace - preserve indentation and line breaks
@@ -313,6 +298,71 @@ class GroqService {
         }
 
         return sanitized
+    }
+
+    // MARK: - List Artifact Normalization
+
+    /// Normalizes model-added leading list artifacts while preserving the original list marker.
+    /// This specifically handles cases like "- [ ]" or duplicate "-" added before list text.
+    static func normalizeLeadingListArtifacts(originalInput: String, output: String) -> String {
+        guard !originalInput.isEmpty, !output.isEmpty else { return output }
+
+        let listPrefixChars = CharacterSet(charactersIn: "-*•–— \t")
+        let listMarkerChars = CharacterSet(charactersIn: "-*•–—")
+
+        let originalPrefix = String(originalInput.prefix(while: { $0.unicodeScalars.allSatisfy { listPrefixChars.contains($0) } }))
+        let outputPrefix = String(output.prefix(while: { $0.unicodeScalars.allSatisfy { listPrefixChars.contains($0) } }))
+
+        var normalizedOutput = output
+        if outputPrefix != originalPrefix {
+            // Keep the original prefix exactly, but preserve the corrected body.
+            let withoutPrefix = String(normalizedOutput.dropFirst(outputPrefix.count))
+            normalizedOutput = originalPrefix + withoutPrefix
+        }
+
+        let originalBody = String(originalInput.dropFirst(originalPrefix.count))
+        var outputBody = String(normalizedOutput.dropFirst(originalPrefix.count))
+
+        let checkboxPattern = #"^\[(?: |x|X)\]\s+"#
+        let dashedCheckboxPattern = #"^[-*•–—]\s*\[(?: |x|X)\]\s+"#
+        let listMarkerPattern = #"^[-*•–—]\s+"#
+
+        // If the original line is not a checklist item, drop model-added checklist tokens.
+        // This handles Notes where selected list text often excludes the visual list marker.
+        let originalIsChecklist = matchesRegex(originalBody, pattern: checkboxPattern)
+            || matchesRegex(originalBody, pattern: dashedCheckboxPattern)
+        if !originalIsChecklist {
+            outputBody = replacingFirstRegexMatch(in: outputBody, pattern: dashedCheckboxPattern, with: "")
+            outputBody = replacingFirstRegexMatch(in: outputBody, pattern: checkboxPattern, with: "")
+        }
+
+        // Only run duplicate list-marker cleanup if the original text actually had a list marker.
+        let originalHasListMarker = originalPrefix.unicodeScalars.contains { listMarkerChars.contains($0) }
+
+        // Remove one extra leading list marker if the model duplicated it.
+        if originalHasListMarker && !matchesRegex(originalBody, pattern: listMarkerPattern) {
+            outputBody = replacingFirstRegexMatch(in: outputBody, pattern: listMarkerPattern, with: "")
+        }
+
+        return originalPrefix + outputBody
+    }
+
+    private static func matchesRegex(_ text: String, pattern: String) -> Bool {
+        guard let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) else {
+            return false
+        }
+        return regex.firstMatch(in: text, options: [], range: NSRange(text.startIndex..., in: text)) != nil
+    }
+
+    private static func replacingFirstRegexMatch(in text: String, pattern: String, with replacement: String) -> String {
+        guard let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) else {
+            return text
+        }
+        let fullRange = NSRange(text.startIndex..., in: text)
+        guard let match = regex.firstMatch(in: text, options: [], range: fullRange) else {
+            return text
+        }
+        return regex.stringByReplacingMatches(in: text, options: [], range: match.range, withTemplate: replacement)
     }
 
     // MARK: - Correct Text
@@ -428,7 +478,7 @@ class GroqService {
         7) KEEP EXACTLY: emojis, CAPS, ???, !!!
         8) KEEP EXACTLY: bullets (-, *, •), numbered lists, indentation, line breaks.
         9) KEEP EXACTLY: code, URLs, paths, markdown, abbreviations.
-        10) Start output with EXACT same character as input. Never add bullets, spaces, or tabs before text.
+        10) Start output with EXACT same character as input. Never add bullets, checklist markers ([ ], [x]), spaces, or tabs before text.
         </instructions>
         """
 
