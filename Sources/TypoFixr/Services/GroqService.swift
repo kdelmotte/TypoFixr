@@ -5,7 +5,11 @@ class GroqService {
 
     private let baseURL = "https://api.groq.com/openai/v1/chat/completions"
     private let model = "llama-3.1-8b-instant"
+    let promptVersion = "v2-contextual-deterministic"
     private let timeout: TimeInterval = 10.0
+    private let decodingTemperature = 0.0
+    private let decodingTopP = 1.0
+    private let decodingCandidateCount = 1
 
     // Security: Maximum allowed output length multiplier
     private let maxOutputLengthMultiplier = 3.0
@@ -371,25 +375,7 @@ class GroqService {
             throw APIError.noApiKey
         }
 
-        let systemPrompt = buildSystemPrompt(languagePreference: languagePreference)
-
-        // Wrap user text in XML tags for prompt injection defense
-        let wrappedUserText = "<user_text>\(text)</user_text>"
-
-        // Dynamic max_tokens: output ≈ input for typo fixing
-        // ~4 chars/token + 50 buffer for expansions, capped at 100-2000
-        let maxTokens = min(max(100, (text.count / 4) + 50), 2000)
-
-        // Build Chat Completions API request (OpenAI-compatible format)
-        let requestBody: [String: Any] = [
-            "model": model,
-            "messages": [
-                ["role": "system", "content": systemPrompt],
-                ["role": "user", "content": wrappedUserText]
-            ],
-            "max_tokens": maxTokens,
-            "temperature": 0.3
-        ]
+        let requestBody = buildRequestBody(text: text, languagePreference: languagePreference)
 
         var request = URLRequest(url: URL(string: baseURL)!)
         request.httpMethod = "POST"
@@ -397,6 +383,10 @@ class GroqService {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = try JSONSerialization.data(withJSONObject: requestBody)
         request.timeoutInterval = timeout
+
+#if DEBUG
+        print("[GroqService] request model=\(model) promptVersion=\(promptVersion)")
+#endif
 
         let (data, response) = try await URLSession.shared.data(for: request)
 
@@ -439,6 +429,10 @@ class GroqService {
             outputTokens = usage["completion_tokens"] as? Int ?? 0
         }
 
+#if DEBUG
+        print("[GroqService] response promptVersion=\(promptVersion) inputTokens=\(inputTokens) outputTokens=\(outputTokens)")
+#endif
+
         guard let finalContent = content else {
             throw APIError.invalidResponse
         }
@@ -461,7 +455,31 @@ class GroqService {
     }
 
     // MARK: - System Prompt
-    private func buildSystemPrompt(languagePreference: String) -> String {
+    func buildRequestBody(text: String, languagePreference: String) -> [String: Any] {
+        let systemPrompt = buildSystemPrompt(languagePreference: languagePreference)
+
+        // Wrap user text in XML tags for prompt injection defense
+        let wrappedUserText = "<user_text>\(text)</user_text>"
+
+        // Dynamic max_tokens: output ≈ input for typo fixing
+        // ~4 chars/token + 50 buffer for expansions, capped at 100-2000
+        let maxTokens = min(max(100, (text.count / 4) + 50), 2000)
+
+        // Build Chat Completions API request (OpenAI-compatible format)
+        return [
+            "model": model,
+            "messages": [
+                ["role": "system", "content": systemPrompt],
+                ["role": "user", "content": wrappedUserText]
+            ],
+            "max_tokens": maxTokens,
+            "temperature": decodingTemperature,
+            "top_p": decodingTopP,
+            "n": decodingCandidateCount
+        ]
+    }
+
+    func buildSystemPrompt(languagePreference: String) -> String {
         var prompt = """
         <instructions>
         Fix typos/misspellings. Only fix grammar/punctuation when needed for clarity. Output ONLY corrected text.
@@ -471,14 +489,25 @@ class GroqService {
         RULES:
         1) Minimal edits. If unsure, don't change.
         2) Fix typos + wrong words (their→there, your→you're) using context.
-        3) Fix tense/agreement only when clearly wrong.
-        4) NO comma adding or restructuring. Only add apostrophes: im→i'm, dont→don't.
-        5) Keep casual: gonna, wanna, kinda, tho, lol, ain't, cause.
-        6) Short typos: closest fix (ti→it). Don't change nearby words.
-        7) KEEP EXACTLY: emojis, CAPS, ???, !!!
-        8) KEEP EXACTLY: bullets (-, *, •), numbered lists, indentation, line breaks.
-        9) KEEP EXACTLY: code, URLs, paths, markdown, abbreviations.
-        10) Start output with EXACT same character as input. Never add bullets, checklist markers ([ ], [x]), spaces, or tabs before text.
+        3) For heavily misspelled tokens, choose the most likely in-context word, not the smallest character edit.
+        4) Do not default unknown tokens to short function words (not, to, of, in, on, at, for, or, an, a) unless grammar clearly requires it.
+        5) Prefer the candidate that matches the grammatical role of surrounding words.
+        6) Fix tense/agreement only when clearly wrong.
+        7) NO comma adding or restructuring. Only add apostrophes: im→i'm, dont→don't.
+        8) Keep casual: gonna, wanna, kinda, tho, lol, ain't, cause.
+        9) Short typos: closest fix (ti→it). Don't change nearby words.
+        10) KEEP EXACTLY: emojis, CAPS, ???, !!!
+        11) KEEP EXACTLY: bullets (-, *, •), numbered lists, indentation, line breaks.
+        12) KEEP EXACTLY: code, URLs, paths, markdown, abbreviations.
+        13) Start output with EXACT same character as input. Never add bullets, checklist markers ([ ], [x]), spaces, or tabs before text.
+
+        EXAMPLES:
+        - Input: "The si the foithb ntot"
+          Output: "This is the fourth note"
+        - Input: "This is teh fith ntot"
+          Output: "This is the fifth note"
+        - Input: "I cnat find teh file"
+          Output: "I can't find the file"
         </instructions>
         """
 
