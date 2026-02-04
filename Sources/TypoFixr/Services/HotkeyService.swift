@@ -121,8 +121,8 @@ class HotkeyService {
         case 109: return .f10
         case 111: return .f12
         case 118: return .f4
-        case 119: return .f2
-        case 120: return .f1
+        case 120: return .f2
+        case 122: return .f1
         default: return nil
         }
     }
