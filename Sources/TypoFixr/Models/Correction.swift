@@ -39,10 +39,14 @@ struct Correction: Identifiable, Codable {
         truncate(correctedText, maxLength: 50)
     }
     
-    var timeAgo: String {
+    private static let timeAgoFormatter: RelativeDateTimeFormatter = {
         let formatter = RelativeDateTimeFormatter()
         formatter.unitsStyle = .abbreviated
-        return formatter.localizedString(for: timestamp, relativeTo: Date())
+        return formatter
+    }()
+
+    var timeAgo: String {
+        Self.timeAgoFormatter.localizedString(for: timestamp, relativeTo: Date())
     }
     
     private func truncate(_ text: String, maxLength: Int) -> String {

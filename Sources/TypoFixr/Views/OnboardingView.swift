@@ -292,13 +292,15 @@ struct APIKeyPage: View {
             }
             .padding(.horizontal, 60)
             
-            Link(destination: URL(string: "https://console.groq.com/keys")!) {
-                HStack {
-                    Image(systemName: "arrow.up.right.square")
-                    Text("Get your free API key from Groq")
+            if let groqURL = URL(string: "https://console.groq.com/keys") {
+                Link(destination: groqURL) {
+                    HStack {
+                        Image(systemName: "arrow.up.right.square")
+                        Text("Get your free API key from Groq")
+                    }
                 }
+                .font(.callout)
             }
-            .font(.callout)
             
             // Cost estimate
             VStack(alignment: .leading, spacing: 4) {
@@ -355,7 +357,7 @@ struct ReadyPage: View {
                 HStack {
                     Image(systemName: "arrow.uturn.backward")
                         .foregroundColor(.accentColor)
-                    Text("Press the shortcut again within 3 seconds to undo")
+                    Text("Press \u{2318}Z to undo")
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }

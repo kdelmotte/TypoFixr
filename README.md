@@ -92,7 +92,6 @@ TypoFixr intelligently selects what to fix using a clipboard-based approach:
 Click the menu bar icon > Settings:
 
 **General Tab:**
-- **Character Limit**: Adjust the max text length (300-1000, default 1000)
 - **Launch at Login**: Start TypoFixr when you log in
 
 **Shortcut Tab:**
@@ -175,9 +174,12 @@ TypoFixr/
         ├── GroqPromptConfigurationTests.swift
         ├── GroqResponseParsingTests.swift
         ├── HUDServicePositioningTests.swift
-        ├── SecurityTests.swift
+        ├── SecurityServiceTests.swift
         ├── HUDViewTests.swift
-        └── WhitespaceNormalizationTests.swift
+        ├── WhitespaceNormalizationTests.swift
+        ├── RateLimitingTests.swift
+        ├── GroqOutputValidationTests.swift
+        └── TextCorrectionServiceTests.swift
 ```
 
 ### Running Tests

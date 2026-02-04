@@ -144,10 +144,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
     
-    func closePopover() {
-        popover.performClose(nil)
-    }
-    
     private func checkAccessibilityPermission() {
         let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: false]
         appState.hasAccessibilityPermission = AXIsProcessTrustedWithOptions(options as CFDictionary)
@@ -219,7 +215,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
             settingsWindow = window
 
-            NSApp.activate(ignoringOtherApps: true)
+            if #available(macOS 14.0, *) {
+                NSApp.activate()
+            } else {
+                NSApp.activate(ignoringOtherApps: true)
+            }
             window.makeKeyAndOrderFront(nil)
         }
     }

@@ -101,7 +101,7 @@ struct MenuBarView: View {
                     Spacer()
                     
                     Button("Grant") {
-                        openAccessibilitySettings()
+                        AppHelpers.openAccessibilitySettings()
                     }
                     .buttonStyle(.borderedProminent)
                     .controlSize(.small)
@@ -145,7 +145,7 @@ struct MenuBarView: View {
             }
             
             MenuButton(title: "Send Feedback", systemImage: "envelope") {
-                if let url = URL(string: "mailto:feedback@typofixr.com?subject=TypoFixr%20Feedback") {
+                if let url = URL(string: "mailto:\(AppHelpers.feedbackEmail)?subject=TypoFixr%20Feedback") {
                     openURL(url)
                 }
             }
@@ -160,12 +160,6 @@ struct MenuBarView: View {
         .padding(.vertical, 8)
     }
     
-    // MARK: - Helpers
-    private func openAccessibilitySettings() {
-        if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") {
-            NSWorkspace.shared.open(url)
-        }
-    }
 }
 
 // MARK: - Correction Row
@@ -237,7 +231,7 @@ struct CorrectionRow: View {
         let encodedSubject = subject.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
         let encodedBody = body.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
 
-        if let url = URL(string: "mailto:feedback@typofixr.com?subject=\(encodedSubject)&body=\(encodedBody)") {
+        if let url = URL(string: "mailto:\(AppHelpers.feedbackEmail)?subject=\(encodedSubject)&body=\(encodedBody)") {
             openURL(url)
         }
     }

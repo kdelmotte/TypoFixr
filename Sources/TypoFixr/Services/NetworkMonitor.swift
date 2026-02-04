@@ -5,21 +5,25 @@ class NetworkMonitor: ObservableObject {
     static let shared = NetworkMonitor()
 
     @Published var isConnected = true
-    private let monitor = NWPathMonitor()
+    private var monitor: NWPathMonitor?
     private let queue = DispatchQueue.global(qos: .background)
 
     private init() {}
 
     func start() {
-        monitor.pathUpdateHandler = { [weak self] path in
+        monitor?.cancel()
+        let newMonitor = NWPathMonitor()
+        newMonitor.pathUpdateHandler = { [weak self] path in
             DispatchQueue.main.async {
                 self?.isConnected = path.status == .satisfied
             }
         }
-        monitor.start(queue: queue)
+        newMonitor.start(queue: queue)
+        monitor = newMonitor
     }
 
     func stop() {
-        monitor.cancel()
+        monitor?.cancel()
+        monitor = nil
     }
 }

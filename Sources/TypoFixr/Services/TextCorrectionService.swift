@@ -38,6 +38,14 @@ class TextCorrectionService {
             return
         }
 
+        // Check rate limit
+        guard appState.checkRateLimit() else {
+            appState.lastError = "Rate limit exceeded"
+            appState.setIconState(.rateLimited, autoReset: true)
+            HUDService.shared.show(title: "Rate Limited", subtitle: "Please wait before trying again", isSuccess: false)
+            return
+        }
+
         // Show processing state
         appState.setIconState(.processing)
 
@@ -64,6 +72,7 @@ class TextCorrectionService {
         let characterLimit = AppState.characterLimit
 
         appState.isProcessing = true
+        defer { appState.isProcessing = false }
         appState.lastError = nil
         appState.setIconState(.processing)
 
@@ -89,14 +98,12 @@ class TextCorrectionService {
             selectionSource = source
 
         case .tooLong(let selected):
-            appState.isProcessing = false
             appState.setIconState(.error, autoReset: true)
             restoreClipboard(pasteboard: pasteboard, savedContent: savedClipboard)
             await showTextTooLongAlert(characterCount: selected.count)
             return
 
         case .noSelection:
-            appState.isProcessing = false
             appState.setIconState(.error, autoReset: true)
             restoreClipboard(pasteboard: pasteboard, savedContent: savedClipboard)
             HUDService.shared.show(title: "Select Text", subtitle: "Highlight text first", isSuccess: false)
@@ -111,7 +118,6 @@ class TextCorrectionService {
 
         // Verify we have text
         guard !textToCorrect.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            appState.isProcessing = false
             appState.setIconState(.error, autoReset: true)
             restoreClipboard(pasteboard: pasteboard, savedContent: savedClipboard)
             HUDService.shared.show(title: "Select Text", subtitle: "Highlight text first", isSuccess: false)
@@ -128,7 +134,6 @@ class TextCorrectionService {
 
             case .promptInjectionWarning(let patterns):
                 // Block completely - no option to proceed
-                appState.isProcessing = false
                 appState.setIconState(.error, autoReset: true)
                 restoreClipboard(pasteboard: pasteboard, savedContent: savedClipboard)
                 await showBlockedAlert(patterns: patterns)
@@ -139,19 +144,11 @@ class TextCorrectionService {
                 if let warning = SecurityService.shared.getWarningMessage(for: securityResult) {
                     let shouldProceed = await showSecurityWarningAlert(title: warning.title, message: warning.message)
                     if !shouldProceed {
-                        appState.isProcessing = false
                         appState.setIconState(.normal)
                         restoreClipboard(pasteboard: pasteboard, savedContent: savedClipboard)
                         return
                     }
                 }
-
-            case .blocked:
-                // Reserved for future hard blocks
-                appState.isProcessing = false
-                appState.setIconState(.error, autoReset: true)
-                restoreClipboard(pasteboard: pasteboard, savedContent: savedClipboard)
-                return
             }
         }
 
@@ -180,7 +177,6 @@ class TextCorrectionService {
                 // Deselect text by pressing right arrow (moves cursor to end of selection)
                 await simulateKeyPress(keyCode: 124, modifiers: []) // Right arrow
 
-                appState.isProcessing = false
                 appState.setIconState(.success, autoReset: true)
                 restoreClipboard(pasteboard: pasteboard, savedContent: savedClipboard)
                 HUDService.shared.show(title: "No Changes", subtitle: "Your text looks good!", isSuccess: true)
@@ -226,8 +222,6 @@ class TextCorrectionService {
             HUDService.shared.show(title: "Error", subtitle: "An unexpected error occurred", isSuccess: false)
             restoreClipboard(pasteboard: pasteboard, savedContent: savedClipboard)
         }
-
-        appState.isProcessing = false
     }
 
     // MARK: - Selection Strategies
@@ -440,7 +434,7 @@ class TextCorrectionService {
             let body = "Detected patterns: \(patterns.joined(separator: ", "))\n\nPlease describe what you were trying to correct:"
             if let encodedSubject = subject.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
                let encodedBody = body.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
-               let url = URL(string: "mailto:feedback@typofixr.com?subject=\(encodedSubject)&body=\(encodedBody)") {
+               let url = URL(string: "mailto:\(AppHelpers.feedbackEmail)?subject=\(encodedSubject)&body=\(encodedBody)") {
                 NSWorkspace.shared.open(url)
             }
         }

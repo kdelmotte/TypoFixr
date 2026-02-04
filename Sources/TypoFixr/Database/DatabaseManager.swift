@@ -233,15 +233,11 @@ class DatabaseManager {
         )
     }
 
-    // MARK: - Device ID
-    func getDeviceId() -> String {
-        return deviceId
-    }
-
     // MARK: - Clear History
     func clearCorrectionHistory() {
         do {
             try db?.run(correctionHistory.delete())
+            try db?.run(usageLog.delete())
         } catch {
             // Silent failure
         }

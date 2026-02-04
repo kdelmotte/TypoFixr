@@ -12,7 +12,6 @@ class SecurityService {
         case safe
         case promptInjectionWarning(patterns: [String])
         case sensitiveDataWarning(types: [SensitiveDataType])
-        case blocked(reason: String)
     }
     
     enum SensitiveDataType: String, CaseIterable {
@@ -22,17 +21,6 @@ class SecurityService {
         case apiKey = "API key"
         case email = "Email address"
         case phoneNumber = "Phone number"
-        
-        var icon: String {
-            switch self {
-            case .creditCard: return "creditcard"
-            case .ssn: return "person.text.rectangle"
-            case .password: return "key"
-            case .apiKey: return "key.horizontal"
-            case .email: return "envelope"
-            case .phoneNumber: return "phone"
-            }
-        }
     }
     
     // MARK: - Prompt Injection Patterns
@@ -180,9 +168,6 @@ class SecurityService {
                 This will be sent to Groq's servers. Continue?
                 """
             )
-            
-        case .blocked(let reason):
-            return ("Blocked", reason)
         }
     }
 }

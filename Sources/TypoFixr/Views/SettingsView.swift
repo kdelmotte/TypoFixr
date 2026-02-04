@@ -68,7 +68,7 @@ struct GeneralSettingsView: View {
                         Image(systemName: "exclamationmark.triangle.fill")
                             .foregroundColor(.orange)
                         Button("Grant Access") {
-                            openAccessibilitySettings()
+                            AppHelpers.openAccessibilitySettings()
                         }
                     }
                 }
@@ -76,12 +76,6 @@ struct GeneralSettingsView: View {
         }
         .formStyle(.grouped)
         .padding()
-    }
-    
-    private func openAccessibilitySettings() {
-        if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") {
-            NSWorkspace.shared.open(url)
-        }
     }
     
     private func setLaunchAtLogin(_ enabled: Bool) {
@@ -316,8 +310,10 @@ struct APISettingsView: View {
             }
 
             Section {
-                Link("Get API Key", destination: URL(string: "https://console.groq.com/keys")!)
-                    .font(.caption)
+                    if let url = URL(string: "https://console.groq.com/keys") {
+                    Link("Get API Key", destination: url)
+                        .font(.caption)
+                }
             }
         }
         .formStyle(.grouped)
@@ -409,9 +405,10 @@ struct SecurityPrivacySettingsView: View {
                             .font(.caption)
                     }
                     
-                    Link("View Groq Privacy Policy",
-                         destination: URL(string: "https://groq.com/privacy-policy/")!)
-                        .font(.caption)
+                    if let url = URL(string: "https://groq.com/privacy-policy/") {
+                        Link("View Groq Privacy Policy", destination: url)
+                            .font(.caption)
+                    }
                 }
             }
         }
@@ -423,7 +420,7 @@ struct SecurityPrivacySettingsView: View {
                 appState.clearHistory()
             }
         } message: {
-            Text("This will remove all correction history from memory. Database history will remain until you delete the app data.")
+            Text("This will permanently remove all correction history.")
         }
     }
     
@@ -449,7 +446,7 @@ struct AboutView: View {
                 .font(.title)
                 .fontWeight(.bold)
             
-            Text("Version 1.0.0")
+            Text("Version \(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.0.0")")
                 .font(.caption)
                 .foregroundColor(.secondary)
             
@@ -462,8 +459,12 @@ struct AboutView: View {
             Spacer()
             
             VStack(spacing: 8) {
-                Link("Privacy Policy", destination: URL(string: "https://typofixr.com/privacy")!)
-                Link("Terms of Service", destination: URL(string: "https://typofixr.com/terms")!)
+                if let url = URL(string: "https://typofixr.com/privacy") {
+                    Link("Privacy Policy", destination: url)
+                }
+                if let url = URL(string: "https://typofixr.com/terms") {
+                    Link("Terms of Service", destination: url)
+                }
             }
             .font(.caption)
         }
