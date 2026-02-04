@@ -3,10 +3,10 @@ import Foundation
 class GroqService {
     static let shared = GroqService()
 
-    private let baseURL = "https://api.groq.com/openai/v1/chat/completions"
+    private static let baseURL = URL(string: "https://api.groq.com/openai/v1/chat/completions")!
     private let model = "openai/gpt-oss-20b"
     let promptVersion = "v3-unified-reliable"
-    private let timeout: TimeInterval = 10.0
+    private let timeout: TimeInterval = 30.0
     private let decodingTemperature = 0.0
     private let decodingTopP = 1.0
     private let decodingCandidateCount = 1
@@ -14,10 +14,10 @@ class GroqService {
     private let retryReasoningEffort = "medium"
     private let noChangesMarker = "__NO_CHANGES__"
     private let veryLongInputThresholdChars = 4200
-    private let initialMinCompletionTokens = 384
-    private let initialMaxCompletionTokens = 1792
-    private let retryMinCompletionTokens = 1024
-    private let retryMaxCompletionTokens = 2048
+    private let initialMinCompletionTokens = 1024
+    private let initialMaxCompletionTokens = 4096
+    private let retryMinCompletionTokens = 2048
+    private let retryMaxCompletionTokens = 8192
     private let veryLongInitialMaxCompletionTokens = 8192
     private let veryLongRetryMaxCompletionTokens = 12288
 
@@ -67,7 +67,7 @@ class GroqService {
             case .networkError(let error):
                 return "Network error: \(error.localizedDescription)"
             case .timeout:
-                return "Request timed out. Please try again."
+                return "Request timed out after 30s. The API may be slow — please try again."
             case .invalidResponse:
                 return "Invalid response from API."
             case .apiError(let message):
@@ -129,7 +129,7 @@ class GroqService {
         ("do shell script", "AppleScript shell"),
 
         // URL patterns that might be phishing
-        ("(https?://[^\\s]+\\.(ru|cn|tk|ml|ga|cf|gq)/)", "suspicious domain"),
+        ("(https?://[^\\s]+\\.(ru|cn|tk|ml|ga|cf|gq)(/|$|\\s))", "suspicious domain"),
     ]
 
     /// Validates AI output for security concerns
@@ -425,17 +425,15 @@ class GroqService {
     }
 
     private func evaluateAttempt(parsed: ParsedCompletion, originalInput: String) throws -> AttemptDecision {
-        if parsed.finishReason?.lowercased() == RetryReason.length.rawValue {
-            return .retry(.length)
-        }
+        let isLengthCapped = parsed.finishReason?.lowercased() == RetryReason.length.rawValue
 
         guard let content = parsed.content else {
-            return .retry(.empty)
+            return .retry(isLengthCapped ? .length : .empty)
         }
 
         let sanitizedText = sanitizeOutput(content, originalInput: originalInput)
         guard !sanitizedText.isEmpty else {
-            return .retry(.empty)
+            return .retry(isLengthCapped ? .length : .empty)
         }
 
         let trimmedSanitizedText = sanitizedText.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -448,6 +446,16 @@ class GroqService {
                 ),
                 outcome: "no_change_marker"
             )
+        }
+
+        // If finish_reason is "length" but the visible output looks truncated
+        // (less than 50% of input length), retry with a bigger budget.
+        // Otherwise the output is likely complete — reasoning tokens just filled the budget.
+        if isLengthCapped && trimmedSanitizedText.count < originalInput.count / 2 {
+#if DEBUG
+            print("[GroqService] length-capped AND output looks truncated (\(trimmedSanitizedText.count) chars vs \(originalInput.count) input) — retrying")
+#endif
+            return .retry(.length)
         }
 
         // Security validation - check for malicious content
@@ -465,7 +473,7 @@ class GroqService {
                 inputTokens: parsed.inputTokens,
                 outputTokens: parsed.outputTokens
             ),
-            outcome: "changed"
+            outcome: isLengthCapped ? "changed_length_capped" : "changed"
         )
     }
 
@@ -548,7 +556,7 @@ class GroqService {
     }
 
     private func performChatCompletionRequest(requestBody: [String: Any], apiKey: String) async throws -> ParsedCompletion {
-        var request = URLRequest(url: URL(string: baseURL)!)
+        var request = URLRequest(url: Self.baseURL)
         request.httpMethod = "POST"
         request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -561,7 +569,15 @@ class GroqService {
         print("[GroqService] request model=\(model) promptVersion=\(promptVersion) max_completion_tokens=\(debugMaxCompletionTokens) reasoning_effort=\(debugReasoningEffort)")
 #endif
 
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let data: Data
+        let response: URLResponse
+        do {
+            (data, response) = try await URLSession.shared.data(for: request)
+        } catch let urlError as URLError where urlError.code == .timedOut {
+            throw APIError.timeout
+        } catch {
+            throw APIError.networkError(error)
+        }
 
         guard let httpResponse = response as? HTTPURLResponse else {
             throw APIError.invalidResponse
@@ -608,12 +624,12 @@ class GroqService {
         }
 
         let initialBudget = min(
-            max(initialMinCompletionTokens, (text.count / 3) + 256),
+            max(initialMinCompletionTokens, (text.count / 2) + 512),
             initialMaxCompletionTokens
         )
         let retryBudget = min(
             retryMaxCompletionTokens,
-            max(retryMinCompletionTokens, initialBudget + 512)
+            max(retryMinCompletionTokens, initialBudget * 2)
         )
         return RequestPolicy(
             initialMaxCompletionTokens: initialBudget,
