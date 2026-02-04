@@ -268,7 +268,7 @@ struct APISettingsView: View {
                     Text("Groq API Key")
                         .font(.headline)
 
-                    Text("Required to use TypoFixr. Get your API key from console.groq.com")
+                    Text("Required to use TypoFixr. Corrections run on Groq-hosted OpenAI GPT-OSS 20B. Get your API key from console.groq.com")
                         .font(.caption)
                         .foregroundColor(.secondary)
 
@@ -405,7 +405,7 @@ struct SecurityPrivacySettingsView: View {
                     HStack(spacing: 8) {
                         Image(systemName: "info.circle")
                             .foregroundColor(.blue)
-                        Text("Your text is sent to Groq for processing")
+                        Text("Your text is sent to Groq-hosted OpenAI GPT-OSS 20B for processing")
                             .font(.caption)
                     }
                     
@@ -471,4 +471,3 @@ struct AboutView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
-

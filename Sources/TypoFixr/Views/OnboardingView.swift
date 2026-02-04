@@ -160,7 +160,7 @@ struct PermissionPage: View {
                         .fontWeight(.medium)
                 }
                 
-                Text("We only access text when you press the keyboard shortcut. Text is sent to Groq for correction and immediately discarded. We do not store, log, or retain any of your text.")
+                Text("We only access text when you press the keyboard shortcut. Text is sent to Groq-hosted OpenAI GPT-OSS 20B for correction and immediately discarded. We do not store, log, or retain any of your text.")
                     .font(.caption)
                     .foregroundColor(.secondary)
             }
@@ -255,7 +255,7 @@ struct APIKeyPage: View {
                 .font(.title)
                 .fontWeight(.bold)
             
-            Text("TypoFixr uses Groq for ultra-fast text correction.\nYou'll need a free API key to continue.")
+            Text("TypoFixr uses Groq-hosted OpenAI GPT-OSS 20B for ultra-fast text correction.\nYou'll need a free Groq API key to continue.")
                 .font(.body)
                 .multilineTextAlignment(.center)
                 .foregroundColor(.secondary)
@@ -417,4 +417,3 @@ struct HowToRow: View {
         }
     }
 }
-

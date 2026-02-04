@@ -6,6 +6,8 @@ class HUDService {
     
     private var hudWindow: NSWindow?
     private var dismissTimer: Timer?
+    private static let defaultBottomMargin: CGFloat = 28
+    private static let defaultHorizontalSafetyMargin: CGFloat = 12
     
     private init() {}
     
@@ -51,7 +53,7 @@ class HUDService {
         window.contentView = hostingView
         window.setContentSize(hostingView.fittingSize)
         
-        // Position the window near the mouse cursor
+        // Position the window at the bottom-center of the display under the cursor
         positionWindow(window)
         
         // Show with fade-in animation
@@ -110,14 +112,46 @@ class HUDService {
     }
     
     private func positionWindow(_ window: NSWindow) {
-        guard let screen = NSScreen.main else { return }
-        let screenFrame = screen.visibleFrame
-        let windowSize = window.frame.size
+        let mouseLocation = NSEvent.mouseLocation
+        let targetScreen = NSScreen.screens.first(where: { NSMouseInRect(mouseLocation, $0.frame, false) })
+            ?? NSScreen.main
+            ?? NSScreen.screens.first
 
-        // Top-right corner with padding
-        let x = screenFrame.maxX - windowSize.width - 20
-        let y = screenFrame.maxY - windowSize.height - 20
+        guard let targetScreen else { return }
 
-        window.setFrameOrigin(NSPoint(x: x, y: y))
+        let origin = Self.hudOrigin(
+            visibleFrame: targetScreen.visibleFrame,
+            windowSize: window.frame.size,
+            bottomMargin: Self.defaultBottomMargin,
+            horizontalSafetyMargin: Self.defaultHorizontalSafetyMargin
+        )
+        window.setFrameOrigin(origin)
+    }
+
+    static func hudOrigin(
+        visibleFrame: CGRect,
+        windowSize: CGSize,
+        bottomMargin: CGFloat = defaultBottomMargin,
+        horizontalSafetyMargin: CGFloat = defaultHorizontalSafetyMargin
+    ) -> CGPoint {
+        let centeredX = visibleFrame.minX + (visibleFrame.width - windowSize.width) / 2
+        let minXWithMargin = visibleFrame.minX + horizontalSafetyMargin
+        let maxXWithMargin = visibleFrame.maxX - windowSize.width - horizontalSafetyMargin
+
+        let x: CGFloat
+        if minXWithMargin <= maxXWithMargin {
+            x = min(max(centeredX, minXWithMargin), maxXWithMargin)
+        } else {
+            let minX = visibleFrame.minX
+            let maxX = visibleFrame.maxX - windowSize.width
+            if minX <= maxX {
+                x = min(max(centeredX, minX), maxX)
+            } else {
+                x = visibleFrame.minX
+            }
+        }
+
+        let y = visibleFrame.minY + bottomMargin
+        return CGPoint(x: round(x), y: round(y))
     }
 }
