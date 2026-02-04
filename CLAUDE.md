@@ -1,6 +1,6 @@
 # TypoFixr
 
-macOS menu bar app that fixes typos/grammar while preserving writing style. Uses Groq llama-3.1-8b-instant with auto-detected language.
+macOS menu bar app that fixes typos/grammar while preserving writing style. Uses Groq-hosted OpenAI GPT-OSS 20B (`openai/gpt-oss-20b`) with auto-detected language.
 
 ## Tech Stack
 - Swift 5.9+, SwiftUI, macOS 13.0+
@@ -47,14 +47,18 @@ Text is always selected backward from cursor position, then copied via clipboard
 
 **Security**: Detects sensitive data (passwords, credit cards, SSNs) and prompt injection patterns before sending to API.
 
-**HUD Notifications**: Fixed position in top-right corner of screen
+**Correction Reliability**: Deterministic decoding (`temperature=0`, `top_p=1`, `n=1`), explicit `__NO_CHANGES__` contract, dynamic `max_completion_tokens`, and a verification retry pass (`reasoning_effort=medium`) for empty/unchanged/length-capped outputs.
 
-**Other**: Use ⌘Z to undo corrections, Launch at Login works via SMAppService, dynamic max_tokens based on input length
+**HUD Notifications**: Bottom-center placement on the active display under cursor, with horizontal safety clamping.
+
+**Other**: Use ⌘Z to undo corrections, Launch at Login works via SMAppService.
 
 ## Commands
 ```bash
-swift build -c release                    # Build
+swift build -c debug                      # Fast local build
+swift build -c release                    # Release build
 swift test                                # Run tests
+bash scripts/restart-onboarding.sh        # Restart app with onboarding forced
 # Deploy (always reset to onboarding first)
 defaults write com.typofixr.app hasCompletedOnboarding -bool false; defaults delete com.typofixr.app keyboardShortcut 2>/dev/null; pkill -f "TypoFixr"; cp .build/release/TypoFixr ~/Applications/TypoFixr.app/Contents/MacOS/; codesign --force --deep --sign - ~/Applications/TypoFixr.app; open ~/Applications/TypoFixr.app
 ```
@@ -67,6 +71,8 @@ defaults write com.typofixr.app hasCompletedOnboarding -bool false; defaults del
 - Clipboard fallback delays: ~0.01-0.08s per operation (see timing constants in TextCorrectionService)
 - Only select text BEFORE cursor (backward), never after
 - Timer references must be stored and invalidated to prevent leaks
+- GPT-OSS requests must use `max_completion_tokens` (not `max_tokens`)
+- Very long inputs (>= 4200 chars) use the large-token policy tier with one retry ceiling
 
 ## AI Prompt Strategy
-Fix only clear errors, use sentence context to disambiguate typos (e.g., "form" vs "from"), preserve tone/style, don't rephrase, keep informal language, preserve emojis/formatting, return ONLY corrected text.
+Fix only clear errors, use sentence context to disambiguate typos (e.g., "form" vs "from"), preserve tone/style, don't rephrase, keep informal language, preserve emojis/formatting, and return ONLY corrected text. If nothing needs correction, return `__NO_CHANGES__`.

@@ -14,6 +14,8 @@ A macOS menu bar app that understands context and fixes your typos and grammar m
 - **Rate Limiting**: Configurable limits to prevent accidental overuse
 - **Spending Cap**: Set monthly token limits to control API costs
 - **Launch at Login**: Optionally start TypoFixr when you log in
+- **Reliable Corrections**: Uses deterministic decoding plus a verification retry pass for empty/unchanged outputs
+- **Long-Input Friendly**: Automatically scales `max_completion_tokens` and applies a higher-capacity tier for very large text
 
 ## Requirements
 
@@ -170,6 +172,9 @@ TypoFixr/
         ├── AppStateTests.swift
         ├── CorrectionTests.swift
         ├── KeyboardShortcutTests.swift
+        ├── GroqPromptConfigurationTests.swift
+        ├── GroqResponseParsingTests.swift
+        ├── HUDServicePositioningTests.swift
         ├── SecurityTests.swift
         ├── HUDViewTests.swift
         └── WhitespaceNormalizationTests.swift
@@ -237,10 +242,9 @@ If you see warnings about sensitive data:
 
 ## Cost Estimation
 
-Using Groq's llama-3.1-8b-instant model:
-- ~$0.05 per 1M input tokens
-- ~$0.08 per 1M output tokens
-- **Typical usage**: ~$0.01/month for 500 corrections (essentially free)
+TypoFixr currently uses Groq-hosted OpenAI GPT-OSS 20B (`openai/gpt-oss-20b`).
+
+Costs can change over time, so check your Groq dashboard/pricing for current token rates.
 
 Use the **Spending Cap** feature in Settings > Security to set monthly limits and monitor usage.
 
@@ -253,6 +257,15 @@ MIT License - see LICENSE file for details.
 Contributions are welcome! Please open an issue or pull request.
 
 ## Changelog
+
+### Unreleased (latest local changes)
+- Switched to Groq-hosted OpenAI GPT-OSS 20B (`openai/gpt-oss-20b`)
+- Upgraded prompt contract to `v3-unified-reliable` with explicit `__NO_CHANGES__` behavior
+- Added adaptive `max_completion_tokens` policy with a very-long-input tier (4200+ chars) and one verification retry
+- Added retry handling for unchanged/empty responses and clearer length-budget error messaging
+- Expanded response parsing to support string and content-part message formats
+- Added HUD bottom-center positioning with safety clamping and unit tests
+- Added `scripts/restart-onboarding.sh` helper for onboarding reset + app restart
 
 ### v1.2.1
 - Improved contextual typo disambiguation in system prompt (better handling of garbled tokens like note/not)
