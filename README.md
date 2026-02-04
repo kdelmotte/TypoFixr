@@ -122,7 +122,6 @@ AI responses are validated for:
 - **Suspicious Patterns**: Script tags, shell commands, JavaScript URLs
 - **AI Refusals**: Detects when the AI declines to process text
 - **Length Limits**: Blocks unexpectedly long responses
-- **Similarity Checks**: Ensures output is similar to input (typo fixes, not rewrites)
 
 ### Rate Limiting
 Prevents accidental overuse with configurable limits:
@@ -229,12 +228,6 @@ bash scripts/restart-onboarding.sh
 2. Check your Groq account is active
 3. Ensure you have internet connectivity
 
-### "Response differed too much" error
-
-This happens when the AI returns something very different from your input. This is a security feature. Try:
-1. Selecting a smaller portion of text
-2. Checking if your text contains unusual formatting
-
 ### Security warnings
 
 If you see warnings about sensitive data:
@@ -260,13 +253,24 @@ Contributions are welcome! Please open an issue or pull request.
 
 ## Changelog
 
-### Unreleased (latest local changes)
+### v1.3.0
 - Switched to Groq-hosted OpenAI GPT-OSS 20B (`openai/gpt-oss-20b`)
 - Upgraded prompt contract to `v3-unified-reliable` with explicit `__NO_CHANGES__` behavior
 - Added adaptive `max_completion_tokens` policy with a very-long-input tier (4200+ chars) and one verification retry
 - Added retry handling for unchanged/empty responses and clearer length-budget error messaging
+- Fixed reasoning model token budget exhaustion: `evaluateAttempt` is now content-aware and accepts valid corrections even when `finish_reason` is `"length"` (reasoning tokens filled the budget but visible output is complete)
+- Increased token budgets (1024–4096 standard, 2048–8192 retry) to accommodate reasoning model overhead
+- Increased API timeout to 30 seconds for reasoning model latency
 - Expanded response parsing to support string and content-part message formats
+- Added client-side rate limiting check before each correction
 - Added HUD bottom-center positioning with safety clamping and unit tests
+- Consolidated shared helpers into `AppHelpers` enum
+- Scoped Keychain storage with service identifier and auto-migration of legacy items
+- Removed similarity check (replaced by `__NO_CHANGES__` marker contract)
+- Removed unused `SecurityService.blocked` case and `SensitiveDataType.icon`
+- Fixed `NetworkMonitor` to properly cancel/recreate `NWPathMonitor`
+- Used `defer` for `isProcessing` cleanup in correction flow
+- Safely unwrap URL literals in views instead of force-unwrapping
 - Added `scripts/restart-onboarding.sh` helper for onboarding reset + app restart
 
 ### v1.2.1

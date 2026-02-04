@@ -5,7 +5,7 @@ macOS menu bar app that fixes typos/grammar while preserving writing style. Uses
 ## Tech Stack
 - Swift 5.9+, SwiftUI, macOS 13.0+
 - SQLite.swift (database), HotKey (global shortcuts)
-- API key stored in Keychain (Groq keys start with `gsk_`)
+- API key stored in Keychain with service scope `com.typofixr.app` (Groq keys start with `gsk_`; legacy unscoped items are auto-migrated)
 
 ## Structure
 ```
@@ -45,9 +45,11 @@ Sources/TypoFixr/
 
 Text is always selected backward from cursor position, then copied via clipboard, corrected, and pasted back.
 
+**Rate Limiting**: Client-side rate limiting is checked before each correction attempt.
+
 **Security**: Detects sensitive data (passwords, credit cards, SSNs) and prompt injection patterns before sending to API.
 
-**Correction Reliability**: Deterministic decoding (`temperature=0`, `top_p=1`, `n=1`), explicit `__NO_CHANGES__` contract, dynamic `max_completion_tokens`, and a verification retry pass (`reasoning_effort=medium`) for empty/unchanged/length-capped outputs.
+**Correction Reliability**: Deterministic decoding (`temperature=0`, `top_p=1`, `n=1`), explicit `__NO_CHANGES__` contract, dynamic `max_completion_tokens`, and a verification retry pass (`reasoning_effort=medium`) for empty/unchanged/length-capped outputs. Because GPT-OSS 20B is a reasoning model, hidden reasoning tokens consume part of the `max_completion_tokens` budget. The `evaluateAttempt` method is content-aware: it only retries on `finish_reason: "length"` when the visible output is genuinely truncated (<50% of input length); otherwise it accepts the correction.
 
 **HUD Notifications**: Bottom-center placement on the active display under cursor, with horizontal safety clamping.
 
@@ -71,8 +73,14 @@ defaults write com.typofixr.app hasCompletedOnboarding -bool false; defaults del
 - Clipboard fallback delays: ~0.01-0.08s per operation (see timing constants in TextCorrectionService)
 - Only select text BEFORE cursor (backward), never after
 - Timer references must be stored and invalidated to prevent leaks
-- GPT-OSS requests must use `max_completion_tokens` (not `max_tokens`)
+- GPT-OSS requests must use `max_completion_tokens` (not `max_tokens`); reasoning tokens are hidden but count toward this budget
 - Very long inputs (>= 4200 chars) use the large-token policy tier with one retry ceiling
+- API timeout is 30 seconds (to accommodate reasoning model latency on long inputs)
+- `NetworkMonitor` must cancel/recreate `NWPathMonitor` on restart (it cannot be restarted once cancelled)
+- `NSApp.activate(ignoringOtherApps:)` is deprecated on macOS 14+; use availability check
+- Shared helpers (`openAccessibilitySettings`, `feedbackEmail`) live in `AppHelpers` enum in AppState.swift
+- `KeyboardShortcutConfig.keyCodeDisplayNames` is the single source of truth for key code → display string mapping
+- `TextCorrectionService` uses `defer { appState.isProcessing = false }` — don't manually reset `isProcessing` in early returns
 
 ## AI Prompt Strategy
 Fix only clear errors, use sentence context to disambiguate typos (e.g., "form" vs "from"), preserve tone/style, don't rephrase, keep informal language, preserve emojis/formatting, and return ONLY corrected text. If nothing needs correction, return `__NO_CHANGES__`.

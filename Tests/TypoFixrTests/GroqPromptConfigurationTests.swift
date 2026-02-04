@@ -44,26 +44,26 @@ final class GroqPromptConfigurationTests: XCTestCase {
             return
         }
 
-        XCTAssertGreaterThanOrEqual(maxCompletionTokens, 384)
-        XCTAssertLessThanOrEqual(maxCompletionTokens, 1792)
+        XCTAssertGreaterThanOrEqual(maxCompletionTokens, 1024)
+        XCTAssertLessThanOrEqual(maxCompletionTokens, 4096)
         XCTAssertNil(requestBody["max_tokens"], "max_tokens should not be sent for GPT-OSS responses")
     }
 
     func testRequestBodyUsesMinimumBudgetForVeryShortInput() {
         let requestBody = service.buildRequestBody(text: "typo", languagePreference: "auto")
-        XCTAssertEqual(requestBody["max_completion_tokens"] as? Int, 384)
+        XCTAssertEqual(requestBody["max_completion_tokens"] as? Int, 1024)
     }
 
     func testRequestBodyUsesScaledBudgetFor1300Characters() {
         let longInput = String(repeating: "a", count: 1_300)
         let requestBody = service.buildRequestBody(text: longInput, languagePreference: "auto")
-        XCTAssertEqual(requestBody["max_completion_tokens"] as? Int, 689)
+        XCTAssertEqual(requestBody["max_completion_tokens"] as? Int, 1162)
     }
 
     func testRequestBodyUsesStandardTierBudgetBelowVeryLongThreshold() {
         let nearThresholdInput = String(repeating: "a", count: 4_199)
         let requestBody = service.buildRequestBody(text: nearThresholdInput, languagePreference: "auto")
-        XCTAssertEqual(requestBody["max_completion_tokens"] as? Int, 1_655)
+        XCTAssertEqual(requestBody["max_completion_tokens"] as? Int, 2_611)
     }
 
     func testRequestBodyUsesVeryLongTierBudgetAt4200Characters() {

@@ -64,8 +64,8 @@ final class GroqResponseParsingTests: XCTestCase {
 
     func testRequestPolicyKeepsStandardTierFormulaFor1300Characters() {
         let policy = service.requestPolicy(for: String(repeating: "a", count: 1_300))
-        XCTAssertEqual(policy.initialMaxCompletionTokens, 689)
-        XCTAssertEqual(policy.retryMaxCompletionTokens, 1_201)
+        XCTAssertEqual(policy.initialMaxCompletionTokens, 1_162)
+        XCTAssertEqual(policy.retryMaxCompletionTokens, 2_324)
     }
 
     func testResolveCorrectionWithRetryRetriesOnUnchangedOutputWithoutMarker() async throws {
@@ -160,6 +160,59 @@ final class GroqResponseParsingTests: XCTestCase {
         } catch {
             XCTFail("Expected GroqService.APIError, got \(error)")
         }
+    }
+
+    func testResolveCorrectionAcceptsCompleteOutputDespiteLengthFinishReason() async throws {
+        let text = "teh quik brwn fox jumps over teh lazy dog"
+        let policy = service.requestPolicy(for: text)
+
+        let result = try await service.resolveCorrectionWithRetry(
+            text: text,
+            requestPolicy: policy
+        ) { _, _, _ in
+            // Model returns complete correction but finish_reason is "length"
+            // because reasoning tokens consumed the budget
+            GroqService.ParsedCompletion(
+                content: "the quick brown fox jumps over the lazy dog",
+                inputTokens: 20,
+                outputTokens: 15,
+                finishReason: "length"
+            )
+        }
+
+        XCTAssertEqual(result.correctedText, "the quick brown fox jumps over the lazy dog")
+    }
+
+    func testResolveCorrectionRetriesOnTruncatedLengthOutput() async throws {
+        var callCount = 0
+        let text = "teh quik brwn fox jumps over teh lazy dog and runs around teh park"
+        let policy = service.requestPolicy(for: text)
+
+        let result = try await service.resolveCorrectionWithRetry(
+            text: text,
+            requestPolicy: policy
+        ) { _, _, _ in
+            callCount += 1
+            if callCount == 1 {
+                // First attempt: truncated output (< 50% of input)
+                return GroqService.ParsedCompletion(
+                    content: "the quick brown",
+                    inputTokens: 20,
+                    outputTokens: 5,
+                    finishReason: "length"
+                )
+            }
+            // Retry: full output
+            return GroqService.ParsedCompletion(
+                content: "the quick brown fox jumps over the lazy dog and runs around the park",
+                inputTokens: 20,
+                outputTokens: 15,
+                finishReason: "stop"
+            )
+        }
+
+        XCTAssertEqual(callCount, 2)
+        XCTAssertEqual(result.correctedText, "the quick brown fox jumps over the lazy dog and runs around the park")
     }
 
     func testResolveCorrectionWithRetryRetriesOnEmptyContent() async throws {
