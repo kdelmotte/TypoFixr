@@ -1,5 +1,11 @@
 #!/usr/bin/env bash
+# DEPRECATED: Use `make deploy` instead, which handles onboarding reset,
+# stable code signing, and correct DEVELOPER_DIR in one step.
 set -euo pipefail
+
+echo "NOTE: This script is deprecated. Use 'make deploy' instead."
+echo "      It handles onboarding reset, signing, and launch."
+echo ""
 
 APP_DOMAIN="com.typofixr.app"
 APP_NAME="TypoFixr"
@@ -15,7 +21,7 @@ if [[ -x "./.build/debug/TypoFixr" ]]; then
 elif [[ -x "./.build/release/TypoFixr" ]]; then
   BIN="./.build/release/TypoFixr"
 else
-  echo "No TypoFixr binary found. Build first with: swift build -c debug"
+  echo "No TypoFixr binary found. Build first with: make build"
   exit 1
 fi
 

@@ -62,4 +62,29 @@ final class TextCorrectionServiceNormalizationTests: XCTestCase {
 
         XCTAssertEqual(normalized, "buy milk today")
     }
+
+    // MARK: - Multi-line Notes Text (Bug 3)
+
+    func testNotesMultiLineTextSkipsNormalization() {
+        // Multi-line text should be returned unchanged so GroqService's list-aware path handles it
+        let text = "- buy milk\n- call mom"
+        let normalized = TextCorrectionService.normalizeCapturedTextForCorrection(
+            text: text,
+            appBundleId: "com.apple.Notes",
+            source: .paragraphFallback
+        )
+
+        XCTAssertEqual(normalized, "- buy milk\n- call mom")
+    }
+
+    func testNotesSingleLineStillStrips() {
+        // Single-line Notes text should still strip the bullet prefix
+        let normalized = TextCorrectionService.normalizeCapturedTextForCorrection(
+            text: "- buy milk",
+            appBundleId: "com.apple.Notes",
+            source: .paragraphFallback
+        )
+
+        XCTAssertEqual(normalized, "buy milk")
+    }
 }

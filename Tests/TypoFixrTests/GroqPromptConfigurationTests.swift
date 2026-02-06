@@ -44,38 +44,41 @@ final class GroqPromptConfigurationTests: XCTestCase {
             return
         }
 
-        XCTAssertGreaterThanOrEqual(maxCompletionTokens, 1024)
-        XCTAssertLessThanOrEqual(maxCompletionTokens, 4096)
+        XCTAssertEqual(maxCompletionTokens, 4096)
         XCTAssertNil(requestBody["max_tokens"], "max_tokens should not be sent for GPT-OSS responses")
     }
 
     func testRequestBodyUsesMinimumBudgetForVeryShortInput() {
         let requestBody = service.buildRequestBody(text: "typo", languagePreference: "auto")
-        XCTAssertEqual(requestBody["max_completion_tokens"] as? Int, 1024)
+        XCTAssertEqual(requestBody["max_completion_tokens"] as? Int, 4096)
     }
 
     func testRequestBodyUsesScaledBudgetFor1300Characters() {
+        // >= 300 chars → medium overhead (3072), medium floor (16384): max(16384, 1300 + 3072) = 16384
         let longInput = String(repeating: "a", count: 1_300)
         let requestBody = service.buildRequestBody(text: longInput, languagePreference: "auto")
-        XCTAssertEqual(requestBody["max_completion_tokens"] as? Int, 1162)
+        XCTAssertEqual(requestBody["max_completion_tokens"] as? Int, 16_384)
     }
 
-    func testRequestBodyUsesStandardTierBudgetBelowVeryLongThreshold() {
+    func testRequestBodyUsesScaledBudgetFor4199Characters() {
+        // >= 300 chars → medium overhead (3072), medium floor (16384): max(16384, 4199 + 3072) = 16384
         let nearThresholdInput = String(repeating: "a", count: 4_199)
         let requestBody = service.buildRequestBody(text: nearThresholdInput, languagePreference: "auto")
-        XCTAssertEqual(requestBody["max_completion_tokens"] as? Int, 2_611)
+        XCTAssertEqual(requestBody["max_completion_tokens"] as? Int, 16_384)
     }
 
-    func testRequestBodyUsesVeryLongTierBudgetAt4200Characters() {
+    func testRequestBodyUsesScaledBudgetFor4200Characters() {
+        // >= 300 chars → medium overhead (3072), medium floor (16384): max(16384, 4200 + 3072) = 16384
         let boundaryInput = String(repeating: "a", count: 4_200)
         let requestBody = service.buildRequestBody(text: boundaryInput, languagePreference: "auto")
-        XCTAssertEqual(requestBody["max_completion_tokens"] as? Int, 8_192)
+        XCTAssertEqual(requestBody["max_completion_tokens"] as? Int, 16_384)
     }
 
-    func testRequestBodyUsesVeryLongTierBudgetFor4800Characters() {
+    func testRequestBodyUsesScaledBudgetFor4800Characters() {
+        // >= 300 chars → medium overhead (3072), medium floor (16384): max(16384, 4800 + 3072) = 16384
         let veryLongInput = String(repeating: "a", count: 4_800)
         let requestBody = service.buildRequestBody(text: veryLongInput, languagePreference: "auto")
-        XCTAssertEqual(requestBody["max_completion_tokens"] as? Int, 8_192)
+        XCTAssertEqual(requestBody["max_completion_tokens"] as? Int, 16_384)
     }
 
     func testRequestBodyUsesLowReasoningEffortByDefault() {
@@ -83,18 +86,42 @@ final class GroqPromptConfigurationTests: XCTestCase {
         XCTAssertEqual(requestBody["reasoning_effort"] as? String, "low")
     }
 
-    func testRequestBodyUsesLowReasoningEffortForLongInputByDefault() {
+    func testRequestBodyUsesMediumReasoningEffortForLongInputByDefault() {
+        // >= 300 chars → medium reasoning effort
         let longInput = String(repeating: "a", count: 1_300)
         let requestBody = service.buildRequestBody(text: longInput, languagePreference: "auto")
-        XCTAssertEqual(requestBody["reasoning_effort"] as? String, "low")
+        XCTAssertEqual(requestBody["reasoning_effort"] as? String, "medium")
     }
 
-    func testRequestBodyAllowsReasoningEffortOverrideForRetry() {
+    func testRequestBodyUsesLowReasoningEffortJustBelowThreshold() {
+        // 299 chars → low reasoning effort + standard overhead (2048)
+        let input = String(repeating: "a", count: 299)
+        let requestBody = service.buildRequestBody(text: input, languagePreference: "auto")
+        XCTAssertEqual(requestBody["reasoning_effort"] as? String, "low")
+        XCTAssertEqual(requestBody["max_completion_tokens"] as? Int, 4096)
+    }
+
+    func testRequestBodyUsesMediumReasoningEffortAtThreshold() {
+        // Exactly 300 chars → medium reasoning effort + medium floor (16384)
+        let input = String(repeating: "a", count: 300)
+        let requestBody = service.buildRequestBody(text: input, languagePreference: "auto")
+        XCTAssertEqual(requestBody["reasoning_effort"] as? String, "medium")
+        XCTAssertEqual(requestBody["max_completion_tokens"] as? Int, 16384)
+    }
+
+    func testRequestBodyUsesMediumReasoningEffortAboveThreshold() {
+        // 500 chars → medium reasoning effort + medium floor (16384)
+        let input = String(repeating: "a", count: 500)
+        let requestBody = service.buildRequestBody(text: input, languagePreference: "auto")
+        XCTAssertEqual(requestBody["reasoning_effort"] as? String, "medium")
+        XCTAssertEqual(requestBody["max_completion_tokens"] as? Int, 16384)
+    }
+
+    func testRequestBodyAllowsReasoningEffortOverride() {
         let requestBody = service.buildRequestBody(
             text: "teh quik brwn fox",
             languagePreference: "auto",
-            reasoningEffort: "medium",
-            verificationPass: true
+            reasoningEffort: "medium"
         )
         XCTAssertEqual(requestBody["reasoning_effort"] as? String, "medium")
     }
@@ -103,30 +130,36 @@ final class GroqPromptConfigurationTests: XCTestCase {
         let input = "teh quik brwn fox"
         let requestBody = service.buildRequestBody(text: input, languagePreference: "auto")
 
-        guard let messages = requestBody["messages"] as? [[String: Any]], messages.count == 2 else {
-            XCTFail("Expected two chat messages in request body")
+        guard let messages = requestBody["messages"] as? [[String: Any]], messages.count == 1 else {
+            XCTFail("Expected one user message in request body (instructions + user text combined)")
             return
         }
 
-        let userMessage = messages[1]
-        let content = userMessage["content"] as? String
-        XCTAssertEqual(content, "<user_text>\(input)</user_text>")
+        let userMessage = messages[0]
+        XCTAssertEqual(userMessage["role"] as? String, "user")
+        let content = userMessage["content"] as? String ?? ""
+        XCTAssertTrue(content.contains("<instructions>"), "User message should contain instructions")
+        XCTAssertTrue(content.contains("<user_text>\(input)</user_text>"), "User message should contain wrapped user text")
     }
 
     func testSystemPromptContainsNoChangeMarkerContract() {
-        let prompt = service.buildSystemPrompt(languagePreference: "auto")
+        let prompt = service.buildInstructions(languagePreference: "auto")
 
         XCTAssertTrue(prompt.contains("__NO_CHANGES__"))
         XCTAssertTrue(prompt.contains("If the input truly needs zero corrections, output EXACTLY"))
     }
 
-    func testVerificationPromptContainsVerificationModeInstruction() {
-        let prompt = service.buildSystemPrompt(languagePreference: "auto", verificationPass: true)
-        XCTAssertTrue(prompt.contains("<verification_mode>"))
-        XCTAssertTrue(prompt.contains("__NO_CHANGES__"))
+    func testInstructionsDoNotContainRetryTag() {
+        let prompt = service.buildInstructions(languagePreference: "auto")
+        XCTAssertFalse(prompt.contains("<retry>"))
+    }
+
+    func testRequestBodyIncludesHiddenReasoningFormat() {
+        let requestBody = service.buildRequestBody(text: "teh quik brwn fox", languagePreference: "auto")
+        XCTAssertEqual(requestBody["reasoning_format"] as? String, "hidden")
     }
 
     func testPromptVersionIsDefinedForTraceability() {
-        XCTAssertEqual(service.promptVersion, "v3-unified-reliable")
+        XCTAssertEqual(service.promptVersion, "v5-single-pass")
     }
 }

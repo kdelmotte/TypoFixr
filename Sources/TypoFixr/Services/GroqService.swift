@@ -1,30 +1,49 @@
 import Foundation
+import NaturalLanguage
 
 class GroqService {
     static let shared = GroqService()
 
     private static let baseURL = URL(string: "https://api.groq.com/openai/v1/chat/completions")!
     private let model = "openai/gpt-oss-20b"
-    let promptVersion = "v3-unified-reliable"
+    let promptVersion = "v5-single-pass"
     private let timeout: TimeInterval = 30.0
     private let decodingTemperature = 0.0
     private let decodingTopP = 1.0
     private let decodingCandidateCount = 1
-    private let shortReasoningEffort = "low"
-    private let retryReasoningEffort = "medium"
+    private let reasoningEffort = "low"
+    private let reasoningEffortMedium = "medium"
+    private let mediumReasoningThreshold = 300  // chars
     private let noChangesMarker = "__NO_CHANGES__"
-    private let veryLongInputThresholdChars = 4200
-    private let initialMinCompletionTokens = 1024
-    private let initialMaxCompletionTokens = 4096
-    private let retryMinCompletionTokens = 2048
-    private let retryMaxCompletionTokens = 8192
-    private let veryLongInitialMaxCompletionTokens = 8192
-    private let veryLongRetryMaxCompletionTokens = 12288
+    private let budgetFloor = 4096
+    private let budgetFloorMedium = 16384
+    private let budgetOverhead = 2048
+    private let budgetOverheadMedium = 3072
+    private let chunkingThreshold = 300   // match mediumReasoningThreshold
+    private let maxClauseChunkSize = 280   // ceiling for chunks; keeps all under mediumReasoningThreshold (300)
+    private let minClauseFragment = 40    // minimum chars on left side of a clause split
+    private let maxConcurrentChunks = 10  // concurrent API calls per correction
 
     // Security: Maximum allowed output length multiplier
     private let maxOutputLengthMultiplier = 3.0
 
+    // Boundary quote characters for restoration (single quotes excluded — apostrophe overlap)
+    private static let leadingQuoteChars: Set<Character> = ["\"", "\u{201C}", "\u{00AB}"]  // ", \u{201C}, \u{00AB}
+    private static let trailingQuoteChars: Set<Character> = ["\"", "\u{201D}", "\u{00BB}"]  // ", \u{201D}, \u{00BB}
+
     private init() {}
+
+    private struct ClauseDelimiter {
+        let pattern: String
+        let leftSuffix: String
+        let gap: String
+    }
+
+    private static let clauseDelimiters: [ClauseDelimiter] = [
+        ClauseDelimiter(pattern: ", ", leftSuffix: ",", gap: " "),    // comma: attach to left, space becomes gap
+        ClauseDelimiter(pattern: "; ", leftSuffix: ";", gap: " "),    // semicolon: same
+        ClauseDelimiter(pattern: " - ", leftSuffix: "", gap: " - "),  // dash: full delimiter becomes gap
+    ]
 
     // MARK: - Response Types
     struct CorrectionResult {
@@ -41,11 +60,26 @@ class GroqService {
     }
 
     struct RequestPolicy {
-        let initialMaxCompletionTokens: Int
+        let maxCompletionTokens: Int
         let reasoningEffort: String
-        let allowLengthRetry: Bool
-        let retryMaxCompletionTokens: Int
-        let retryReasoningEffort: String
+    }
+
+    struct SentenceChunks {
+        let sentences: [String]   // Right-trimmed sentence text for API
+        let gaps: [String]        // Separator between sentence[i] and sentence[i+1]
+        let leadingGap: String    // Whitespace before first sentence
+        let trailingGap: String   // Whitespace after last sentence
+    }
+
+    struct ParsedList {
+        struct Item {
+            let prefix: String   // e.g. "- ", "1. ", "• "
+            let text: String     // content after prefix
+        }
+        let items: [Item]
+        let gaps: [String]       // gaps[i] = separator between item[i] and item[i+1]
+        let leadingGap: String   // whitespace before first item
+        let trailingGap: String  // whitespace after last item
     }
 
     enum APIError: LocalizedError {
@@ -57,7 +91,6 @@ class GroqService {
         case rateLimited
         case suspiciousOutput(String)
         case outputTooLong
-        case unreliableNoChange
         case aiRefused
 
         var errorDescription: String? {
@@ -78,8 +111,6 @@ class GroqService {
                 return "Response blocked for security: \(reason)"
             case .outputTooLong:
                 return "Response was unexpectedly long and has been blocked."
-            case .unreliableNoChange:
-                return "Couldn't verify corrections reliably. Please try again."
             case .aiRefused:
                 return "The AI declined to process this text."
             }
@@ -180,6 +211,17 @@ class GroqService {
     private func sanitizeOutput(_ output: String, originalInput: String) -> String {
         var sanitized = output
 
+        // Strip <think>...</think> reasoning blocks (safety net — reasoning_format: "hidden" should prevent these)
+        if let thinkRange = sanitized.range(of: "<think>", options: .caseInsensitive) {
+            if let closeRange = sanitized.range(of: "</think>", options: .caseInsensitive, range: thinkRange.upperBound..<sanitized.endIndex) {
+                // Complete <think>...</think> block — keep only text after closing tag
+                sanitized = String(sanitized[closeRange.upperBound...])
+            } else {
+                // Unclosed <think> (budget exhausted mid-reasoning) — strip from <think> to end
+                sanitized = String(sanitized[..<thinkRange.lowerBound])
+            }
+        }
+
         // Strip user_text XML tags that AI might accidentally include (these are never in original text)
         sanitized = sanitized.replacingOccurrences(of: "<user_text>", with: "", options: .caseInsensitive)
         sanitized = sanitized.replacingOccurrences(of: "</user_text>", with: "", options: .caseInsensitive)
@@ -211,7 +253,10 @@ class GroqService {
         }
 
         // Normalize list-prefix artifacts often seen with Apple Notes list items.
-        sanitized = Self.normalizeLeadingListArtifacts(originalInput: originalInput, output: sanitized)
+        // Skip for __NO_CHANGES__ marker (think-tag edge case where raw check misses but stripping reveals it)
+        if sanitized.trimmingCharacters(in: .whitespacesAndNewlines) != "__NO_CHANGES__" {
+            sanitized = Self.normalizeLeadingListArtifacts(originalInput: originalInput, output: sanitized)
+        }
 
         // Strip closing tags and partial tags at END only
         // Don't trim whitespace - preserve indentation and line breaks
@@ -236,11 +281,7 @@ class GroqService {
 
         // Only trim trailing whitespace, preserve leading indentation
         // This keeps formatting intact while removing any trailing spaces/newlines the model added
-        while sanitized.hasSuffix(" ") || sanitized.hasSuffix("\t") {
-            sanitized = String(sanitized.dropLast())
-        }
-        // Trim at most one trailing newline (model sometimes adds extra)
-        if sanitized.hasSuffix("\n") {
+        while sanitized.hasSuffix(" ") || sanitized.hasSuffix("\t") || sanitized.hasSuffix("\n") || sanitized.hasSuffix("\r") {
             sanitized = String(sanitized.dropLast())
         }
 
@@ -250,8 +291,28 @@ class GroqService {
     // MARK: - List Artifact Normalization
 
     /// Normalizes model-added leading list artifacts while preserving the original list marker.
-    /// This specifically handles cases like "- [ ]" or duplicate "-" added before list text.
+    /// For multi-line text where both original and output have the same line count,
+    /// applies per-line normalization. Otherwise falls back to single-line (first line) behavior.
     static func normalizeLeadingListArtifacts(originalInput: String, output: String) -> String {
+        guard !originalInput.isEmpty, !output.isEmpty else { return output }
+
+        let originalLines = originalInput.components(separatedBy: "\n")
+        let outputLines = output.components(separatedBy: "\n")
+
+        // Multi-line: apply per-line when line counts match
+        if originalLines.count > 1 && originalLines.count == outputLines.count {
+            let normalized = zip(originalLines, outputLines).map { orig, out in
+                normalizeLeadingListArtifactsSingleLine(originalInput: orig, output: out)
+            }
+            return normalized.joined(separator: "\n")
+        }
+
+        // Single-line or mismatched line counts: existing behavior
+        return normalizeLeadingListArtifactsSingleLine(originalInput: originalInput, output: output)
+    }
+
+    /// Single-line normalization: fixes duplicate dashes, checklist artifacts, etc.
+    private static func normalizeLeadingListArtifactsSingleLine(originalInput: String, output: String) -> String {
         guard !originalInput.isEmpty, !output.isEmpty else { return output }
 
         let listPrefixChars = CharacterSet(charactersIn: "-*•–— \t")
@@ -312,10 +373,432 @@ class GroqService {
         return regex.stringByReplacingMatches(in: text, options: [], range: match.range, withTemplate: replacement)
     }
 
+    // MARK: - Boundary Quote Restoration
+
+    /// Restores leading/trailing quotes that the model strips when they appear at text boundaries.
+    /// The model sometimes interprets boundary quotes as XML-adjacent delimiters and drops them.
+    static func restoreBoundaryQuotes(original: String, corrected: String) -> String {
+        guard !original.isEmpty, !corrected.isEmpty else { return corrected }
+        var result = corrected
+
+        if let firstOrig = original.first, leadingQuoteChars.contains(firstOrig),
+           let firstCorr = result.first, !leadingQuoteChars.contains(firstCorr) {
+            result = String(firstOrig) + result
+        }
+
+        if let lastOrig = original.last, trailingQuoteChars.contains(lastOrig),
+           let lastCorr = result.last, !trailingQuoteChars.contains(lastCorr) {
+            result = result + String(lastOrig)
+        }
+
+        return result
+    }
+
+    // MARK: - Multi-Line List Detection
+
+    /// Bullet pattern: `- `, `* `, `• `, `– `, `— ` with optional leading whitespace
+    private static let bulletPattern = #"^(\s*[-*•–—]\s+)"#
+    /// Numbered pattern: `1. `, `2) ` etc. with optional leading whitespace
+    private static let numberedPattern = #"^(\s*\d+[.)]\s+)"#
+
+    /// Detect multi-line list text and parse into items with prefixes.
+    /// Returns nil if the text is not a list (mixed types, single item, non-list lines).
+    static func parseMultiLineList(_ text: String) -> ParsedList? {
+        let lines = text.components(separatedBy: "\n")
+        guard lines.count >= 2 else { return nil }
+
+        // Classify non-blank lines and track gaps
+        var items: [ParsedList.Item] = []
+        var gaps: [String] = []
+        var leadingGap = ""
+        var trailingGap = ""
+        var detectedType: String? = nil  // "bullet" or "numbered"
+        var pendingBlankLines: [String] = []  // blank lines accumulated between items
+        var foundFirstItem = false
+
+        let bulletRegex = try! NSRegularExpression(pattern: bulletPattern)
+        let numberedRegex = try! NSRegularExpression(pattern: numberedPattern)
+
+        for line in lines {
+            // Blank line — accumulate between items
+            if line.trimmingCharacters(in: .whitespaces).isEmpty {
+                if foundFirstItem {
+                    pendingBlankLines.append(line)
+                } else {
+                    leadingGap += (leadingGap.isEmpty ? "" : "\n") + line
+                }
+                continue
+            }
+
+            let range = NSRange(line.startIndex..., in: line)
+
+            // Try bullet match
+            if let match = bulletRegex.firstMatch(in: line, range: range),
+               let prefixRange = Range(match.range(at: 1), in: line) {
+                let lineType = "bullet"
+                if detectedType == nil { detectedType = lineType }
+                guard detectedType == lineType else { return nil }
+
+                if foundFirstItem {
+                    // Gap = \n + blank lines joined by \n + \n (if blank lines exist), else just \n
+                    if pendingBlankLines.isEmpty {
+                        gaps.append("\n")
+                    } else {
+                        gaps.append("\n" + pendingBlankLines.joined(separator: "\n") + "\n")
+                    }
+                } else {
+                    if !leadingGap.isEmpty { leadingGap += "\n" }
+                    foundFirstItem = true
+                }
+                pendingBlankLines = []
+
+                let prefix = String(line[prefixRange])
+                let body = String(line[prefixRange.upperBound...])
+                items.append(ParsedList.Item(prefix: prefix, text: body))
+                continue
+            }
+
+            // Try numbered match
+            if let match = numberedRegex.firstMatch(in: line, range: range),
+               let prefixRange = Range(match.range(at: 1), in: line) {
+                let lineType = "numbered"
+                if detectedType == nil { detectedType = lineType }
+                guard detectedType == lineType else { return nil }
+
+                if foundFirstItem {
+                    if pendingBlankLines.isEmpty {
+                        gaps.append("\n")
+                    } else {
+                        gaps.append("\n" + pendingBlankLines.joined(separator: "\n") + "\n")
+                    }
+                } else {
+                    if !leadingGap.isEmpty { leadingGap += "\n" }
+                    foundFirstItem = true
+                }
+                pendingBlankLines = []
+
+                let prefix = String(line[prefixRange])
+                let body = String(line[prefixRange.upperBound...])
+                items.append(ParsedList.Item(prefix: prefix, text: body))
+                continue
+            }
+
+            // Non-list line found — not a valid list
+            return nil
+        }
+
+        guard items.count >= 2 else { return nil }
+
+        // Any trailing blank lines after the last item become trailingGap
+        if !pendingBlankLines.isEmpty {
+            trailingGap = "\n" + pendingBlankLines.joined(separator: "\n")
+        }
+
+        return ParsedList(
+            items: items,
+            gaps: gaps,
+            leadingGap: leadingGap,
+            trailingGap: trailingGap
+        )
+    }
+
+    /// Reassemble corrected texts with original list prefixes and gaps.
+    static func reassembleList(list: ParsedList, correctedTexts: [String]) -> String {
+        var result = list.leadingGap
+        for (i, item) in list.items.enumerated() {
+            result += item.prefix + correctedTexts[i]
+            if i < list.gaps.count {
+                result += list.gaps[i]
+            }
+        }
+        result += list.trailingGap
+        return result
+    }
+
+    // MARK: - Sentence Chunking
+
+    func splitIntoSentenceChunks(_ text: String) -> SentenceChunks {
+        // 1. NLTokenizer to get raw sentence ranges
+        let tokenizer = NLTokenizer(unit: .sentence)
+        tokenizer.string = text
+
+        var rawRanges: [Range<String.Index>] = []
+        tokenizer.enumerateTokens(in: text.startIndex..<text.endIndex) { range, _ in
+            rawRanges.append(range)
+            return true
+        }
+
+        guard !rawRanges.isEmpty else {
+            return SentenceChunks(sentences: [], gaps: [], leadingGap: text, trailingGap: "")
+        }
+
+        // 2. URL-healing merge: detect URLs that span chunk boundaries
+        var mergedRanges = rawRanges
+        if let detector = try? NSDataDetector(types: NSTextCheckingResult.CheckingType.link.rawValue) {
+            let nsText = text as NSString
+            let urlMatches = detector.matches(in: text, options: [], range: NSRange(location: 0, length: nsText.length))
+
+            for match in urlMatches {
+                guard let urlRange = Range(match.range, in: text) else { continue }
+
+                // Find which chunks the URL spans
+                var firstIdx: Int?
+                var lastIdx: Int?
+                for (i, chunkRange) in mergedRanges.enumerated() {
+                    if chunkRange.overlaps(urlRange) {
+                        if firstIdx == nil { firstIdx = i }
+                        lastIdx = i
+                    }
+                }
+
+                // Merge chunks that split this URL
+                if let first = firstIdx, let last = lastIdx, first < last {
+                    let merged = mergedRanges[first].lowerBound..<mergedRanges[last].upperBound
+                    mergedRanges.replaceSubrange(first...last, with: [merged])
+                }
+            }
+        }
+
+        // 3. Whitespace-only filter: skip chunks that are only whitespace
+        //    and extract gaps between chunks
+        var sentences: [String] = []
+        var gaps: [String] = []
+        var sentenceRanges: [Range<String.Index>] = []
+
+        for range in mergedRanges {
+            let chunk = String(text[range])
+            if chunk.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                // Fold into gap — will be captured between sentenceRanges
+                continue
+            }
+            sentenceRanges.append(range)
+        }
+
+        guard !sentenceRanges.isEmpty else {
+            return SentenceChunks(sentences: [], gaps: [], leadingGap: text, trailingGap: "")
+        }
+
+        // 4. Right-trim each sentence and compute gaps
+        //    Gap[i] = text between end of sentence[i] and start of sentence[i+1]
+        let leadingGap = String(text[text.startIndex..<sentenceRanges[0].lowerBound])
+
+        for (i, range) in sentenceRanges.enumerated() {
+            let raw = String(text[range])
+
+            // Right-trim: strip trailing whitespace, fold it into gap
+            var trimmed = raw
+            var trailingWS = ""
+            while trimmed.hasSuffix(" ") || trimmed.hasSuffix("\t") || trimmed.hasSuffix("\n") || trimmed.hasSuffix("\r") {
+                trailingWS = String(trimmed.last!) + trailingWS
+                trimmed = String(trimmed.dropLast())
+            }
+
+            sentences.append(trimmed)
+
+            // Gap between this sentence and next
+            if i < sentenceRanges.count - 1 {
+                let gapStart = range.upperBound
+                let gapEnd = sentenceRanges[i + 1].lowerBound
+                let interGap = gapStart < gapEnd ? String(text[gapStart..<gapEnd]) : ""
+                gaps.append(trailingWS + interGap)
+            } else {
+                // Last sentence: trailing gap = trimmed WS + text after last range
+                let afterLast = range.upperBound < text.endIndex ? String(text[range.upperBound..<text.endIndex]) : ""
+                // trailingGap stored separately below
+                gaps.append("") // placeholder, not used
+                let trailingGapFinal = trailingWS + afterLast
+                // We'll set trailingGap after the loop
+                sentences[sentences.count - 1] = trimmed
+                // Store trailing gap in a temporary — handled after loop
+                gaps[gaps.count - 1] = trailingGapFinal
+            }
+        }
+
+        // Extract trailing gap from the last entry in gaps
+        let trailingGap = gaps.removeLast()
+
+        // 5. Aggressive sentence merging: merge adjacent sentences when combined <= maxClauseChunkSize
+        var mergedSentences: [String] = []
+        var mergedGaps: [String] = []
+        var i = 0
+
+        while i < sentences.count {
+            var current = sentences[i]
+
+            while i + 1 < sentences.count
+                && (current.count + gaps[i].count + sentences[i + 1].count) <= maxClauseChunkSize {
+                current = current + gaps[i] + sentences[i + 1]
+                i += 1
+            }
+
+            mergedSentences.append(current)
+            if i < gaps.count {
+                mergedGaps.append(gaps[i])
+            }
+            i += 1
+        }
+
+        // mergedGaps should have exactly mergedSentences.count - 1 entries
+        if mergedGaps.count >= mergedSentences.count {
+            mergedGaps = Array(mergedGaps.prefix(mergedSentences.count - 1))
+        }
+
+        // 6. Clause-level splitting: break chunks > maxClauseChunkSize at clause boundaries
+        let (finalSentences, finalGaps) = splitOversizedChunks(sentences: mergedSentences, gaps: mergedGaps)
+
+        return SentenceChunks(
+            sentences: finalSentences,
+            gaps: finalGaps,
+            leadingGap: leadingGap,
+            trailingGap: trailingGap
+        )
+    }
+
+    /// Split a single oversized chunk at clause boundaries (`, `, `; `, ` - `).
+    /// Returns sub-chunks and gaps that reassemble to the original text.
+    private func splitChunkAtClauseBoundaries(_ text: String) -> (sentences: [String], gaps: [String]) {
+        guard text.count > maxClauseChunkSize else {
+            return (sentences: [text], gaps: [])
+        }
+
+        let midpoint = text.count / 2
+
+        // Find all clause delimiter positions and pick the one closest to midpoint
+        var bestSplit: (position: Int, leftSuffix: String, gap: String)?
+        var bestDistance = Int.max
+
+        for delim in Self.clauseDelimiters {
+            var searchStart = text.startIndex
+            while let range = text.range(of: delim.pattern, range: searchStart..<text.endIndex) {
+                let charPos = text.distance(from: text.startIndex, to: range.lowerBound)
+
+                // Enforce minimum fragment size on left side
+                let leftLen = charPos + delim.leftSuffix.count
+                if leftLen >= minClauseFragment {
+                    let distance = abs(charPos - midpoint)
+                    if distance < bestDistance {
+                        bestDistance = distance
+                        bestSplit = (position: charPos, leftSuffix: delim.leftSuffix, gap: delim.gap)
+                    }
+                }
+
+                searchStart = range.upperBound
+            }
+        }
+
+        guard let split = bestSplit else {
+            // No suitable delimiter found — keep as-is (falls back to medium reasoning)
+            return (sentences: [text], gaps: [])
+        }
+
+        // Split: left gets text before delimiter + punctuation, right gets text after delimiter
+        let delimStartIndex = text.index(text.startIndex, offsetBy: split.position)
+
+        // Find the actual delimiter pattern to know its full length
+        var delimLength = 0
+        for delim in Self.clauseDelimiters {
+            if text[delimStartIndex...].hasPrefix(delim.pattern) {
+                delimLength = delim.pattern.count
+                break
+            }
+        }
+
+        let left = String(text[..<delimStartIndex]) + split.leftSuffix
+        let delimEndIndex = text.index(delimStartIndex, offsetBy: delimLength)
+        let right = String(text[delimEndIndex...])
+
+        // Recursively split both halves if still oversized
+        let (leftSentences, leftGaps) = splitChunkAtClauseBoundaries(left)
+        let (rightSentences, rightGaps) = splitChunkAtClauseBoundaries(right)
+
+        // Combine: leftSentences + [gap] + rightSentences
+        var combinedSentences = leftSentences
+        var combinedGaps = leftGaps
+        combinedGaps.append(split.gap)
+        combinedSentences.append(contentsOf: rightSentences)
+        combinedGaps.append(contentsOf: rightGaps)
+
+        return (sentences: combinedSentences, gaps: combinedGaps)
+    }
+
+    /// Apply clause-level splitting to all oversized chunks, preserving inter-sentence gaps.
+    private func splitOversizedChunks(sentences: [String], gaps: [String]) -> (sentences: [String], gaps: [String]) {
+        var finalSentences: [String] = []
+        var finalGaps: [String] = []
+
+        for (i, chunk) in sentences.enumerated() {
+            let (subSentences, subGaps) = splitChunkAtClauseBoundaries(chunk)
+
+            // Append a gap before this chunk's sub-sentences (inter-sentence gap from previous)
+            if !finalSentences.isEmpty && i - 1 < gaps.count {
+                finalGaps.append(gaps[i - 1])
+            }
+
+            finalSentences.append(contentsOf: subSentences)
+            finalGaps.append(contentsOf: subGaps)
+        }
+
+        // finalGaps should have exactly finalSentences.count - 1 entries
+        if finalGaps.count >= finalSentences.count {
+            finalGaps = Array(finalGaps.prefix(finalSentences.count - 1))
+        }
+
+        return (sentences: finalSentences, gaps: finalGaps)
+    }
+
+    /// Reassemble corrected chunks with original whitespace gaps
+    static func reassemble(chunks: SentenceChunks, corrected: [String]) -> String {
+        var result = chunks.leadingGap
+        for (i, text) in corrected.enumerated() {
+            result += text
+            if i < chunks.gaps.count {
+                result += chunks.gaps[i]
+            }
+        }
+        result += chunks.trailingGap
+        return result
+    }
+
     // MARK: - Correct Text
     func correctText(_ text: String, apiKey: String, languagePreference: String) async throws -> CorrectionResult {
         guard !apiKey.isEmpty else {
             throw APIError.noApiKey
+        }
+
+        // List-aware path: detect multi-line lists and correct items independently
+        if let list = Self.parseMultiLineList(text), list.items.count > 1 {
+#if DEBUG
+            print("[GroqService] list correction: \(list.items.count) items from \(text.count) chars")
+#endif
+            return try await correctListText(
+                list: list,
+                apiKey: apiKey,
+                languagePreference: languagePreference
+            )
+        }
+
+#if DEBUG
+        if text.contains("\n") {
+            let preview = String(text.prefix(200))
+            let escaped = preview.unicodeScalars.map { scalar in
+                scalar.isASCII ? String(scalar) : "\\u{\(String(scalar.value, radix: 16))}"
+            }.joined()
+            print("[GroqService] parseMultiLineList returned nil for multi-line (\(text.count) chars): \(escaped)")
+        }
+#endif
+
+        if text.count >= chunkingThreshold {
+            let chunks = splitIntoSentenceChunks(text)
+            if chunks.sentences.count > 1 {
+#if DEBUG
+                print("[GroqService] parallel chunking: \(chunks.sentences.count) chunks from \(text.count) chars")
+#endif
+                return try await correctTextParallel(
+                    chunks: chunks,
+                    apiKey: apiKey,
+                    languagePreference: languagePreference
+                )
+            }
         }
 
         return try await correctSingleText(
@@ -325,170 +808,225 @@ class GroqService {
         )
     }
 
-    private enum RetryReason: String {
-        case length
-        case empty
-        case unchangedWithoutMarker = "unchanged_without_marker"
+    private func correctTextParallel(
+        chunks: SentenceChunks,
+        apiKey: String,
+        languagePreference: String
+    ) async throws -> CorrectionResult {
+        let sentenceCount = chunks.sentences.count
+
+        return try await withThrowingTaskGroup(of: (Int, CorrectionResult).self) { group in
+            var launched = 0
+            var nextToLaunch = 0
+            var results = [(Int, CorrectionResult)]()
+            results.reserveCapacity(sentenceCount)
+
+            // Launch initial batch
+            while nextToLaunch < sentenceCount && launched < maxConcurrentChunks {
+                let idx = nextToLaunch
+                let sentence = chunks.sentences[idx]
+                group.addTask {
+                    let result = try await self.correctSingleText(
+                        text: sentence,
+                        apiKey: apiKey,
+                        languagePreference: languagePreference
+                    )
+                    return (idx, result)
+                }
+                launched += 1
+                nextToLaunch += 1
+            }
+
+            // Collect results and launch remaining
+            for try await indexedResult in group {
+                results.append(indexedResult)
+                launched -= 1
+
+                if nextToLaunch < sentenceCount {
+                    let idx = nextToLaunch
+                    let sentence = chunks.sentences[idx]
+                    group.addTask {
+                        let result = try await self.correctSingleText(
+                            text: sentence,
+                            apiKey: apiKey,
+                            languagePreference: languagePreference
+                        )
+                        return (idx, result)
+                    }
+                    launched += 1
+                    nextToLaunch += 1
+                }
+            }
+
+            // Sort by index and reassemble
+            results.sort { $0.0 < $1.0 }
+            let correctedTexts = results.map { $0.1.correctedText }
+            let totalInput = results.reduce(0) { $0 + $1.1.inputTokens }
+            let totalOutput = results.reduce(0) { $0 + $1.1.outputTokens }
+
+            let reassembled = Self.reassemble(chunks: chunks, corrected: correctedTexts)
+
+            return CorrectionResult(
+                correctedText: reassembled,
+                inputTokens: totalInput,
+                outputTokens: totalOutput
+            )
+        }
     }
 
-    private enum AttemptDecision {
-        case success(CorrectionResult, outcome: String)
-        case retry(RetryReason)
+    private func correctListText(
+        list: ParsedList,
+        apiKey: String,
+        languagePreference: String
+    ) async throws -> CorrectionResult {
+        let itemCount = list.items.count
+
+        return try await withThrowingTaskGroup(of: (Int, CorrectionResult).self) { group in
+            var launched = 0
+            var nextToLaunch = 0
+            var results = [(Int, CorrectionResult)]()
+            results.reserveCapacity(itemCount)
+
+            // Launch initial batch
+            while nextToLaunch < itemCount && launched < maxConcurrentChunks {
+                let idx = nextToLaunch
+                let itemText = list.items[idx].text
+                group.addTask {
+                    // Skip empty items — return original text unchanged
+                    guard !itemText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                        return (idx, CorrectionResult(correctedText: itemText, inputTokens: 0, outputTokens: 0))
+                    }
+                    let result = try await self.correctSingleText(
+                        text: itemText,
+                        apiKey: apiKey,
+                        languagePreference: languagePreference
+                    )
+                    return (idx, result)
+                }
+                launched += 1
+                nextToLaunch += 1
+            }
+
+            // Collect results and launch remaining
+            for try await indexedResult in group {
+                results.append(indexedResult)
+                launched -= 1
+
+                if nextToLaunch < itemCount {
+                    let idx = nextToLaunch
+                    let itemText = list.items[idx].text
+                    group.addTask {
+                        guard !itemText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                            return (idx, CorrectionResult(correctedText: itemText, inputTokens: 0, outputTokens: 0))
+                        }
+                        let result = try await self.correctSingleText(
+                            text: itemText,
+                            apiKey: apiKey,
+                            languagePreference: languagePreference
+                        )
+                        return (idx, result)
+                    }
+                    launched += 1
+                    nextToLaunch += 1
+                }
+            }
+
+            // Sort by index and reassemble
+            results.sort { $0.0 < $1.0 }
+            let correctedTexts = results.map { $0.1.correctedText }
+            let totalInput = results.reduce(0) { $0 + $1.1.inputTokens }
+            let totalOutput = results.reduce(0) { $0 + $1.1.outputTokens }
+
+            let reassembled = Self.reassembleList(list: list, correctedTexts: correctedTexts)
+
+            return CorrectionResult(
+                correctedText: reassembled,
+                inputTokens: totalInput,
+                outputTokens: totalOutput
+            )
+        }
     }
 
     private func correctSingleText(text: String, apiKey: String, languagePreference: String) async throws -> CorrectionResult {
         let policy = requestPolicy(for: text)
-        return try await resolveCorrectionWithRetry(
+        let requestBody = buildRequestBody(
             text: text,
-            requestPolicy: policy
-        ) { [self] maxCompletionTokens, reasoningEffort, verificationPass in
-            let requestBody = buildRequestBody(
-                text: text,
-                languagePreference: languagePreference,
-                maxCompletionTokens: maxCompletionTokens,
-                reasoningEffort: reasoningEffort,
-                verificationPass: verificationPass
-            )
-            return try await performChatCompletionRequest(requestBody: requestBody, apiKey: apiKey)
-        }
-    }
-
-    func resolveCorrectionWithRetry(
-        text: String,
-        requestPolicy: RequestPolicy,
-        requestPerformer: (_ maxCompletionTokens: Int, _ reasoningEffort: String, _ verificationPass: Bool) async throws -> ParsedCompletion
-    ) async throws -> CorrectionResult {
-        let isVeryLongTier = text.count >= veryLongInputThresholdChars
-        let policyTier = isVeryLongTier ? "very_long" : "standard"
-#if DEBUG
-        print("[GroqService] policy tier=\(policyTier) threshold_match=\(isVeryLongTier) initial_budget=\(requestPolicy.initialMaxCompletionTokens) retry_budget=\(requestPolicy.retryMaxCompletionTokens)")
-#endif
-
-        func runAttempt(attemptIndex: Int, maxCompletionTokens: Int, reasoningEffort: String, verificationPass: Bool) async throws -> ParsedCompletion {
-#if DEBUG
-            print("[GroqService] attempt=\(attemptIndex) input_chars=\(text.count) max_completion_tokens=\(maxCompletionTokens) reasoning_effort=\(reasoningEffort) verification_pass=\(verificationPass)")
-#endif
-            let parsed = try await requestPerformer(maxCompletionTokens, reasoningEffort, verificationPass)
-#if DEBUG
-            print("[GroqService] attempt=\(attemptIndex) finishReason=\(parsed.finishReason ?? "none") inputTokens=\(parsed.inputTokens) outputTokens=\(parsed.outputTokens)")
-#endif
-            return parsed
-        }
-
-        let initialAttempt = try await runAttempt(
-            attemptIndex: 1,
-            maxCompletionTokens: requestPolicy.initialMaxCompletionTokens,
-            reasoningEffort: requestPolicy.reasoningEffort,
-            verificationPass: false
+            languagePreference: languagePreference,
+            maxCompletionTokens: policy.maxCompletionTokens,
+            reasoningEffort: policy.reasoningEffort
         )
-        switch try evaluateAttempt(parsed: initialAttempt, originalInput: text) {
-        case .success(let result, let outcome):
-#if DEBUG
-            print("[GroqService] final_outcome=\(outcome)")
-#endif
-            return result
-        case .retry(let retryReason):
-#if DEBUG
-            print("[GroqService] retry_reason=\(retryReason.rawValue)")
-#endif
-            guard requestPolicy.allowLengthRetry else {
-                if retryReason == .unchangedWithoutMarker {
-                    throw APIError.unreliableNoChange
-                }
-                throw emptyResponseAPIError(finishReason: initialAttempt.finishReason, inputLength: text.count)
-            }
-            let retryAttempt = try await runAttempt(
-                attemptIndex: 2,
-                maxCompletionTokens: requestPolicy.retryMaxCompletionTokens,
-                reasoningEffort: requestPolicy.retryReasoningEffort,
-                verificationPass: true
-            )
-            switch try evaluateAttempt(parsed: retryAttempt, originalInput: text) {
-            case .success(let result, let outcome):
-#if DEBUG
-                print("[GroqService] final_outcome=\(outcome)")
-#endif
-                return result
-            case .retry(let finalRetryReason):
-#if DEBUG
-                print("[GroqService] final_outcome=error retry_reason=\(finalRetryReason.rawValue)")
-#endif
-                if finalRetryReason == .unchangedWithoutMarker {
-                    throw APIError.unreliableNoChange
-                }
-                throw emptyResponseAPIError(
-                    finishReason: retryAttempt.finishReason ?? initialAttempt.finishReason,
-                    inputLength: text.count
-                )
-            }
-        }
+        let parsed = try await performChatCompletionRequest(requestBody: requestBody, apiKey: apiKey)
+        return try resolveCorrection(parsed: parsed, originalInput: text)
     }
 
-    private func evaluateAttempt(parsed: ParsedCompletion, originalInput: String) throws -> AttemptDecision {
-        let isLengthCapped = parsed.finishReason?.lowercased() == RetryReason.length.rawValue
+    func resolveCorrection(parsed: ParsedCompletion, originalInput: String) throws -> CorrectionResult {
+        let isLengthCapped = parsed.finishReason?.lowercased() == "length"
 
-        guard let content = parsed.content else {
-            return .retry(isLengthCapped ? .length : .empty)
+        guard let content = parsed.content, !content.isEmpty else {
+            if isLengthCapped {
+                throw APIError.apiError("Correction exceeded output budget (finish_reason: length). Try selecting a smaller amount of text.")
+            }
+            let reason = (parsed.finishReason ?? "unknown").lowercased()
+            throw APIError.apiError("Received empty response from API (finish_reason: \(reason)). Try selecting a smaller amount of text.")
+        }
+
+        // Check for __NO_CHANGES__ on raw content BEFORE sanitization
+        // (normalizeLeadingListArtifacts can prepend list prefixes that corrupt the marker)
+        let rawTrimmed = content.trimmingCharacters(in: .whitespacesAndNewlines)
+        if rawTrimmed == noChangesMarker {
+#if DEBUG
+            let effort = requestPolicy(for: originalInput).reasoningEffort
+            print("[GroqService] __NO_CHANGES__ marker received (raw) — inputLen=\(originalInput.count) outputTokens=\(parsed.outputTokens) reasoningEffort=\(effort)")
+#endif
+            return CorrectionResult(correctedText: originalInput, inputTokens: parsed.inputTokens, outputTokens: parsed.outputTokens)
         }
 
         let sanitizedText = sanitizeOutput(content, originalInput: originalInput)
         guard !sanitizedText.isEmpty else {
-            return .retry(isLengthCapped ? .length : .empty)
+            if isLengthCapped {
+                throw APIError.apiError("Correction exceeded output budget (finish_reason: length). Try selecting a smaller amount of text.")
+            }
+            let reason = (parsed.finishReason ?? "unknown").lowercased()
+            throw APIError.apiError("Received empty response from API (finish_reason: \(reason)). Try selecting a smaller amount of text.")
         }
 
         let trimmedSanitizedText = sanitizedText.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        // Explicit no-changes marker
         if trimmedSanitizedText == noChangesMarker {
-            return .success(
-                CorrectionResult(
-                    correctedText: originalInput,
-                    inputTokens: parsed.inputTokens,
-                    outputTokens: parsed.outputTokens
-                ),
-                outcome: "no_change_marker"
-            )
+#if DEBUG
+            let effort = requestPolicy(for: originalInput).reasoningEffort
+            print("[GroqService] __NO_CHANGES__ marker received — inputLen=\(originalInput.count) outputTokens=\(parsed.outputTokens) reasoningEffort=\(effort)")
+#endif
+            return CorrectionResult(correctedText: originalInput, inputTokens: parsed.inputTokens, outputTokens: parsed.outputTokens)
         }
 
-        // If finish_reason is "length" but the visible output looks truncated
-        // (less than 50% of input length), retry with a bigger budget.
-        // Otherwise the output is likely complete — reasoning tokens just filled the budget.
+        // Length-capped with genuinely truncated output — error, don't accept garbage
         if isLengthCapped && trimmedSanitizedText.count < originalInput.count / 2 {
 #if DEBUG
-            print("[GroqService] length-capped AND output looks truncated (\(trimmedSanitizedText.count) chars vs \(originalInput.count) input) — retrying")
+            print("[GroqService] length-capped AND output looks truncated (\(trimmedSanitizedText.count) chars vs \(originalInput.count) input)")
 #endif
-            return .retry(.length)
+            throw APIError.apiError("Correction exceeded output budget (finish_reason: length). Try selecting a smaller amount of text.")
         }
 
-        // Security validation - check for malicious content
-        try validateOutput(sanitizedText, originalInput: originalInput)
+        // Restore boundary quotes that the model strips at text boundaries
+        let restoredText = Self.restoreBoundaryQuotes(original: originalInput, corrected: sanitizedText)
 
+        // Security validation
+        try validateOutput(restoredText, originalInput: originalInput)
+
+        // Unchanged text without marker — model saw no corrections needed
+        let trimmedRestoredText = restoredText.trimmingCharacters(in: .whitespacesAndNewlines)
         let originalNormalized = originalInput.trimmingCharacters(in: .whitespacesAndNewlines)
-        let correctedNormalized = trimmedSanitizedText
-        if correctedNormalized == originalNormalized {
-            return .retry(.unchangedWithoutMarker)
+        if trimmedRestoredText == originalNormalized {
+#if DEBUG
+            let effort = requestPolicy(for: originalInput).reasoningEffort
+            print("[GroqService] output matches input (no marker) — inputLen=\(originalInput.count) outputTokens=\(parsed.outputTokens) reasoningEffort=\(effort)")
+#endif
+            return CorrectionResult(correctedText: originalInput, inputTokens: parsed.inputTokens, outputTokens: parsed.outputTokens)
         }
 
-        return .success(
-            CorrectionResult(
-                correctedText: sanitizedText,
-                inputTokens: parsed.inputTokens,
-                outputTokens: parsed.outputTokens
-            ),
-            outcome: isLengthCapped ? "changed_length_capped" : "changed"
-        )
-    }
-
-    private func emptyResponseAPIError(finishReason: String?, inputLength: Int) -> APIError {
-        let reason = (finishReason ?? "unknown").lowercased()
-        if reason == RetryReason.length.rawValue {
-            if inputLength >= veryLongInputThresholdChars {
-                return .apiError(
-                    "The paragraph is very large and exceeded output budget after retry (finish_reason: length). Try correcting a smaller section."
-                )
-            }
-            return .apiError("Correction exceeded output budget (finish_reason: length). Try selecting a smaller amount of text.")
-        }
-
-        return .apiError("Received empty response from API (finish_reason: \(reason)). Try selecting a smaller amount of text.")
+        return CorrectionResult(correctedText: restoredText, inputTokens: parsed.inputTokens, outputTokens: parsed.outputTokens)
     }
 
     func parseCompletionPayload(_ json: [String: Any]) throws -> ParsedCompletion {
@@ -566,7 +1104,8 @@ class GroqService {
 #if DEBUG
         let debugMaxCompletionTokens = requestBody["max_completion_tokens"] ?? "n/a"
         let debugReasoningEffort = requestBody["reasoning_effort"] ?? "n/a"
-        print("[GroqService] request model=\(model) promptVersion=\(promptVersion) max_completion_tokens=\(debugMaxCompletionTokens) reasoning_effort=\(debugReasoningEffort)")
+        let debugReasoningFormat = requestBody["reasoning_format"] ?? "n/a"
+        print("[GroqService] request model=\(model) promptVersion=\(promptVersion) max_completion_tokens=\(debugMaxCompletionTokens) reasoning_effort=\(debugReasoningEffort) reasoning_format=\(debugReasoningFormat)")
 #endif
 
         let data: Data
@@ -613,72 +1152,52 @@ class GroqService {
     }
 
     func requestPolicy(for text: String) -> RequestPolicy {
-        if text.count >= veryLongInputThresholdChars {
-            return RequestPolicy(
-                initialMaxCompletionTokens: veryLongInitialMaxCompletionTokens,
-                reasoningEffort: shortReasoningEffort,
-                allowLengthRetry: true,
-                retryMaxCompletionTokens: veryLongRetryMaxCompletionTokens,
-                retryReasoningEffort: retryReasoningEffort
-            )
-        }
-
-        let initialBudget = min(
-            max(initialMinCompletionTokens, (text.count / 2) + 512),
-            initialMaxCompletionTokens
-        )
-        let retryBudget = min(
-            retryMaxCompletionTokens,
-            max(retryMinCompletionTokens, initialBudget * 2)
-        )
-        return RequestPolicy(
-            initialMaxCompletionTokens: initialBudget,
-            reasoningEffort: shortReasoningEffort,
-            allowLengthRetry: true,
-            retryMaxCompletionTokens: retryBudget,
-            retryReasoningEffort: retryReasoningEffort
-        )
+        let effort = text.count >= mediumReasoningThreshold ? reasoningEffortMedium : reasoningEffort
+        let overhead = effort == reasoningEffortMedium ? budgetOverheadMedium : budgetOverhead
+        let floor = effort == reasoningEffortMedium ? budgetFloorMedium : budgetFloor
+        let budget = max(floor, text.count + overhead)
+        return RequestPolicy(maxCompletionTokens: budget, reasoningEffort: effort)
     }
 
-    // MARK: - System Prompt
+    // MARK: - Instructions & Request Body
     func buildRequestBody(
         text: String,
         languagePreference: String,
         maxCompletionTokens: Int? = nil,
-        reasoningEffort: String? = nil,
-        verificationPass: Bool = false
+        reasoningEffort: String? = nil
     ) -> [String: Any] {
-        let systemPrompt = buildSystemPrompt(
-            languagePreference: languagePreference,
-            verificationPass: verificationPass
-        )
+        let instructions = buildInstructions(languagePreference: languagePreference)
 
         // Wrap user text in XML tags for prompt injection defense
         let wrappedUserText = "<user_text>\(text)</user_text>"
+
+        // Combine instructions + user text in a single user message (Groq recommendation:
+        // avoid system prompts for reasoning models — include all instructions in user message)
+        let combinedMessage = "\(instructions)\n\n\(wrappedUserText)"
 
         let policy = requestPolicy(for: text)
 
         // Dynamic max_completion_tokens: output ≈ input for typo fixing.
         // Reasoning models need a higher floor to avoid empty visible output on short inputs.
-        let completionTokenBudget = maxCompletionTokens ?? policy.initialMaxCompletionTokens
+        let completionTokenBudget = maxCompletionTokens ?? policy.maxCompletionTokens
         let requestReasoningEffort = reasoningEffort ?? policy.reasoningEffort
 
         // Build Chat Completions API request (OpenAI-compatible format)
         return [
             "model": model,
             "messages": [
-                ["role": "system", "content": systemPrompt],
-                ["role": "user", "content": wrappedUserText]
+                ["role": "user", "content": combinedMessage]
             ],
             "max_completion_tokens": completionTokenBudget,
             "reasoning_effort": requestReasoningEffort,
+            "reasoning_format": "hidden",
             "temperature": decodingTemperature,
             "top_p": decodingTopP,
             "n": decodingCandidateCount
         ]
     }
 
-    func buildSystemPrompt(languagePreference: String, verificationPass: Bool = false) -> String {
+    func buildInstructions(languagePreference: String) -> String {
         var prompt = """
         <instructions>
         Fix spelling, grammar, and punctuation errors while preserving voice, meaning, and structure.
@@ -698,10 +1217,6 @@ class GroqService {
         5) Never prepend bullets/checklist markers or extra leading whitespace.
         </instructions>
         """
-
-        if verificationPass {
-            prompt += "\n<verification_mode>Re-check every sentence for missed errors. Use \(noChangesMarker) only when there are absolutely zero corrections.</verification_mode>"
-        }
 
         if languagePreference == "auto" {
             prompt += "\n<language_rule>Preserve the original language - do not translate</language_rule>"

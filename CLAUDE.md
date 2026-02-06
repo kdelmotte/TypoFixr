@@ -49,7 +49,7 @@ Text is always selected backward from cursor position, then copied via clipboard
 
 **Security**: Detects sensitive data (passwords, credit cards, SSNs) and prompt injection patterns before sending to API.
 
-**Correction Reliability**: Deterministic decoding (`temperature=0`, `top_p=1`, `n=1`), explicit `__NO_CHANGES__` contract, dynamic `max_completion_tokens`, and a verification retry pass (`reasoning_effort=medium`) for empty/unchanged/length-capped outputs. Because GPT-OSS 20B is a reasoning model, hidden reasoning tokens consume part of the `max_completion_tokens` budget. The `evaluateAttempt` method is content-aware: it only retries on `finish_reason: "length"` when the visible output is genuinely truncated (<50% of input length); otherwise it accepts the correction.
+**Correction Reliability**: Single-pass, no retries. Deterministic decoding (`temperature=0`, `top_p=1`, `n=1`), explicit `__NO_CHANGES__` contract, and a linear `max_completion_tokens` formula: `max(floor, chars + overhead)`. Budget floor is 4096 (low) or 16384 (medium). Reasoning effort scales with input length: `low` for < 300 chars (pattern matching, sub-1s) and `medium` for >= 300 chars (deeper analysis, ~1-2s). Budget overhead is 2048 at `low` and 3072 at `medium` to absorb extra hidden reasoning tokens. Requests include `reasoning_format: "hidden"` so chain-of-thought stays internal and only corrected text appears in `content`. Instructions are placed in the user message (not system prompt) per Groq's recommendation for reasoning models. If output matches input without `__NO_CHANGES__` marker, the result is accepted as "no corrections needed" (not an error). The `resolveCorrection` method is content-aware: it errors on `finish_reason: "length"` only when visible output is genuinely truncated (<50% of input length); otherwise it accepts the correction. Text >=300 chars with multiple sentences is split into parallel sentence-level chunks via `NLTokenizer`. Each chunk is corrected independently with "low" reasoning effort (4096 budget), eliminating `finish_reason: "length"` failures from reasoning token spikes. Max 10 concurrent API calls; adjacent sentences are aggressively merged when combined <= 280 chars (`maxClauseChunkSize`); URLs containing `?` are protected via `NSDataDetector` URL-healing merge. Oversized chunks (>280 chars, e.g. run-on sentences) are split at clause boundaries (`, `, `; `, ` - `) near the midpoint, with a 40-char minimum fragment to prevent tiny splits; this is recursive so all sub-chunks end up <= 280 chars. Comma/semicolon attaches to the left sub-chunk; the space becomes the gap for exact reassembly. If no clause delimiter is found, the chunk stays as-is (falls back to medium reasoning). Single-sentence long text with no clause delimiters falls back to single-call with medium reasoning. Multi-line list text (bullets or numbered) is detected before sentence chunking: each item's text is corrected independently without its prefix, then reassembled with original prefixes and gaps (blank lines between items). This prevents the model from duplicating list markers or restructuring numbered lists. List detection requires >=2 items of the same type (all bullets or all numbered); mixed types or partial lists fall through to normal correction. The `__NO_CHANGES__` marker is checked on raw API content BEFORE `sanitizeOutput` to prevent `normalizeLeadingListArtifacts` from prepending list prefixes that corrupt the marker (e.g. `"  - __NO_CHANGES__"` ≠ `"__NO_CHANGES__"`). Boundary quotes (`"`, `\u{201C}`, `\u{201D}`, `\u{00AB}`, `\u{00BB}`) are restored post-sanitization via `restoreBoundaryQuotes` — the model strips leading quotes when they appear adjacent to XML tags; single quotes excluded due to apostrophe overlap. Notes multi-line text skips bullet-prefix stripping in `normalizeCapturedTextForCorrection` so `parseMultiLineList` can detect and handle the list structure.
 
 **HUD Notifications**: Bottom-center placement on the active display under cursor, with horizontal safety clamping.
 
@@ -57,13 +57,14 @@ Text is always selected backward from cursor position, then copied via clipboard
 
 ## Commands
 ```bash
-swift build -c debug                      # Fast local build
-swift build -c release                    # Release build
-swift test                                # Run tests
-bash scripts/restart-onboarding.sh        # Restart app with onboarding forced
-# Deploy (always reset to onboarding first)
-defaults write com.typofixr.app hasCompletedOnboarding -bool false; defaults delete com.typofixr.app keyboardShortcut 2>/dev/null; pkill -f "TypoFixr"; cp .build/release/TypoFixr ~/Applications/TypoFixr.app/Contents/MacOS/; codesign --force --deep --sign - ~/Applications/TypoFixr.app; open ~/Applications/TypoFixr.app
+make build                                # Fast local build (debug)
+make release                              # Release build
+make test                                 # Run all tests (XCTest)
+make deploy                               # Build release, reset onboarding, sign, launch
+bash scripts/setup-signing.sh             # One-time: create TypoFixrDev signing cert
 ```
+
+**Deploy always resets to onboarding** — this is intentional. After any code change, always `make deploy` (never just copy the binary manually). The Makefile sets `DEVELOPER_DIR` to Xcode and uses the `TypoFixrDev` certificate for stable signing.
 
 ## Gotchas
 - `NSApp.setActivationPolicy(.accessory)` must be called BEFORE `setupMenuBar()`
@@ -74,13 +75,32 @@ defaults write com.typofixr.app hasCompletedOnboarding -bool false; defaults del
 - Only select text BEFORE cursor (backward), never after
 - Timer references must be stored and invalidated to prevent leaks
 - GPT-OSS requests must use `max_completion_tokens` (not `max_tokens`); reasoning tokens are hidden but count toward this budget
-- Very long inputs (>= 4200 chars) use the large-token policy tier with one retry ceiling
-- API timeout is 30 seconds (to accommodate reasoning model latency on long inputs)
+- Token budget uses linear formula: `max(floor, chars + overhead)` where floor is 4096 (low) or 16384 (medium), overhead is 2048 (low) or 3072 (medium reasoning effort, >= 300 chars)
+- Groq defaults `reasoning_format` to `"raw"` which dumps `<think>` tags into visible output; always send `reasoning_format: "hidden"`
+- Instructions go in user message (not system prompt) — Groq recommends avoiding system prompts for reasoning models
+- API timeout is 30 seconds (tighter budgets keep latency well within this)
 - `NetworkMonitor` must cancel/recreate `NWPathMonitor` on restart (it cannot be restarted once cancelled)
 - `NSApp.activate(ignoringOtherApps:)` is deprecated on macOS 14+; use availability check
 - Shared helpers (`openAccessibilitySettings`, `feedbackEmail`) live in `AppHelpers` enum in AppState.swift
 - `KeyboardShortcutConfig.keyCodeDisplayNames` is the single source of truth for key code → display string mapping
 - `TextCorrectionService` uses `defer { appState.isProcessing = false }` — don't manually reset `isProcessing` in early returns
+- `xcode-select` points to Command Line Tools (no XCTest); Makefile sets `DEVELOPER_DIR` to Xcode for XCTest support
+- Swift 6.x defaults to Swift Testing discovery; `--enable-xctest` flag required for XCTest-based tests
+- App is signed with local `TypoFixrDev` certificate (not ad-hoc) to preserve accessibility permissions across deploys. Run `bash scripts/setup-signing.sh` once on a new machine
+- Deploy (`make deploy`) always resets onboarding — don't skip this step
+- `NLTokenizer` requires `import NaturalLanguage` (Apple framework, no package dependency)
+- `chunkingThreshold` (300) must stay in sync with `mediumReasoningThreshold`
+- `maxClauseChunkSize` (280) must stay below `mediumReasoningThreshold` (300) to ensure all chunks use low reasoning
+- Clause delimiters (`, `, `; `, ` - `) split oversized chunks; comma/semicolon attaches to left, space becomes gap
+- `minClauseFragment` (40) prevents clause splits from creating trivially small left fragments
+- NLTokenizer splits URLs at `?` — URL-healing merge via `NSDataDetector` fixes this
+- Sentence text is right-trimmed before API; trailing whitespace folded into gaps for exact reassembly
+- `sanitizeOutput` strips ALL trailing whitespace (spaces, tabs, newlines, carriage returns) — model-added trailing `\n` are artifacts, not user content
+- Multi-line list detection (`parseMultiLineList`) runs before sentence chunking; each item corrected without prefix to prevent model mangling list structure
+- `normalizeLeadingListArtifacts` applies per-line when original and output have matching line counts; falls back to single-line otherwise
+- `__NO_CHANGES__` marker must be checked on raw content BEFORE `sanitizeOutput` — list artifact normalization can prepend prefixes that corrupt the marker
+- Notes single-line dash stripping is a known trade-off: can't distinguish "Notes bullet artifact" from "user-typed dash" for single-line text
+- `restoreBoundaryQuotes` only handles double quotes and guillemets; single quotes (`'`) excluded due to apostrophe false positives on corrected contractions
 
 ## AI Prompt Strategy
 Fix only clear errors, use sentence context to disambiguate typos (e.g., "form" vs "from"), preserve tone/style, don't rephrase, keep informal language, preserve emojis/formatting, and return ONLY corrected text. If nothing needs correction, return `__NO_CHANGES__`.

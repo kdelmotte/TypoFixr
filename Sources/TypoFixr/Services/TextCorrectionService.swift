@@ -58,7 +58,7 @@ class TextCorrectionService {
     // Direct Accessibility API text manipulation is unreliable in many apps.
 
     /// Result of smart text selection
-    private enum SelectionResult {
+    enum SelectionResult: Equatable {
         case success(text: String, source: SelectionSource)
         case tooLong(selected: String)
         case noSelection
@@ -76,18 +76,17 @@ class TextCorrectionService {
         appState.lastError = nil
         appState.setIconState(.processing)
 
-        // Step 1: Always check for existing selection first (works in all apps)
-        var selectionResult = await checkExistingSelection(pasteboard: pasteboard, characterLimit: characterLimit)
-
-        // Step 2: If no selection, try smart paragraph selection
-        if case .noSelection = selectionResult {
-            selectionResult = await tryParagraphSelection(pasteboard: pasteboard, characterLimit: characterLimit)
-        }
-
-        // Step 3: If still no selection, try line selection as last resort
-        if case .noSelection = selectionResult {
-            selectionResult = await tryLineSelection(pasteboard: pasteboard, characterLimit: characterLimit)
-        }
+        let selectionResult = await resolveSelectionResult(
+            checkExistingSelection: { [self] in
+                await checkExistingSelection(pasteboard: pasteboard, characterLimit: characterLimit)
+            },
+            tryParagraphSelection: { [self] in
+                await tryParagraphSelection(pasteboard: pasteboard, characterLimit: characterLimit)
+            },
+            tryLineSelection: { [self] in
+                await tryLineSelection(pasteboard: pasteboard, characterLimit: characterLimit)
+            }
+        )
 
         // Handle the result
         let rawTextToCorrect: String
@@ -224,6 +223,28 @@ class TextCorrectionService {
         }
     }
 
+    @MainActor
+    func resolveSelectionResult(
+        checkExistingSelection: () async -> SelectionResult,
+        tryParagraphSelection: () async -> SelectionResult,
+        tryLineSelection: () async -> SelectionResult
+    ) async -> SelectionResult {
+        // Step 1: Always check for existing selection first (works in all apps)
+        var selectionResult = await checkExistingSelection()
+
+        // Step 2: If no selection, try smart paragraph selection
+        if case .noSelection = selectionResult {
+            selectionResult = await tryParagraphSelection()
+        }
+
+        // Step 3: If still no selection, try line selection as last resort
+        if case .noSelection = selectionResult {
+            selectionResult = await tryLineSelection()
+        }
+
+        return selectionResult
+    }
+
     // MARK: - Selection Strategies
 
     /// Check if user already has text selected (Cmd+C to copy)
@@ -299,6 +320,11 @@ class TextCorrectionService {
             return text
         case .paragraphFallback, .lineFallback:
             break
+        }
+
+        // Multi-line text: skip bullet stripping, let GroqService's list-aware path handle it
+        if text.contains("\n") {
+            return text
         }
 
         let patterns = [
