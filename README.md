@@ -4,22 +4,17 @@ A macOS menu bar app that understands context and fixes your typos and grammar m
 
 ## Features
 
-- **Instant Corrections**: Press `⌘⇧D` (Command + Shift + D) to fix typos in any text field
-- **Style Preservation**: AI fixes errors while keeping your tone and word choices
+- **Instant Corrections**: Press `⌘⇧D` to fix typos in any text field
+- **Style Preservation**: Fixes errors while keeping your tone, word choices, and formatting
 - **Smart Text Selection**: Automatically selects text backward from cursor (paragraph → line → prompt)
 - **Works Everywhere**: Compatible with most macOS apps (Notes, Mail, Slack, Chrome, etc.)
+- **Handles Long Text**: Splits large text into sentences and corrects them in parallel for speed and reliability
+- **List-Aware**: Bullet and numbered lists are corrected item-by-item, preserving structure
 - **Multi-language**: Supports 50+ languages with auto-detection
-- **Security Protections**: Detects prompt injection attempts and warns about sensitive data
-- **Offline Detection**: Shows status when network is unavailable
-- **Rate Limiting**: Configurable limits to prevent accidental overuse
-- **Spending Cap**: Set monthly token limits to control API costs
+- **Security**: Detects prompt injection attempts, warns about sensitive data, validates AI output
+- **Rate Limiting & Spending Cap**: Configurable per-minute/per-hour limits and optional monthly token cap
 - **Launch at Login**: Optionally start TypoFixr when you log in
-- **Reliable Corrections**: Single-pass deterministic decoding (`temperature=0`) with explicit `__NO_CHANGES__` contract — no retries needed
-- **Smart Chunking**: Long text is split into sentence-level chunks corrected in parallel (up to 10 concurrent API calls), with clause-boundary splitting for oversized sentences
-- **List-Aware**: Detects bullet and numbered lists, corrects each item independently to prevent model mangling of list structure
-- **Quote Preservation**: Restores boundary quotes stripped by the model during correction
-- **URL Healing**: Protects URLs containing `?` from sentence tokenizer splits via `NSDataDetector`
-- **Adaptive Token Budget**: Linear `max_completion_tokens` formula scales with input length; reasoning effort adjusts automatically (low < 300 chars, medium >= 300 chars)
+- **Undo**: Use `⌘Z` in any app to revert a correction
 
 ## Requirements
 
@@ -52,7 +47,7 @@ A macOS menu bar app that understands context and fixes your typos and grammar m
 
 1. **Grant Accessibility Permission**
    - On first launch, you'll be prompted to grant Accessibility permission
-   - Go to System Preferences > Privacy & Security > Accessibility
+   - Go to System Settings > Privacy & Security > Accessibility
    - Enable TypoFixr in the list
 
 2. **Add Your Groq API Key**
@@ -83,51 +78,29 @@ TypoFixr intelligently selects what to fix using a clipboard-based approach:
 | 3. Line | If paragraph is too long, selects current line instead |
 | 4. Prompt | If no text found, you're prompted to select text |
 
-### Reverting Changes
-
-- **System undo**: Use `⌘Z` in any app to undo the correction
-
 ### Customization
 
 Click the menu bar icon > Settings:
 
-**General Tab:**
-- **Launch at Login**: Start TypoFixr when you log in
-
-**Shortcut Tab:**
-- **Keyboard Shortcut**: Change the trigger shortcut (default `⌘⇧D`)
-
-**API Tab:**
-- **API Key**: Enter your Groq API key
-
-**Security Tab:**
-- **Security Warnings**: Toggle warnings for sensitive data and prompt injections
-- **Rate Limiting**: Set max corrections per minute (5-30) and per hour (20-500)
-- **Spending Cap**: Enable and set monthly token limits
-- **Clear History**: Remove all correction history
+| Tab | Options |
+|-----|---------|
+| **General** | Launch at Login |
+| **Shortcut** | Change the trigger shortcut (default `⌘⇧D`) |
+| **API** | Enter your Groq API key |
+| **Security** | Toggle warnings, rate limits (per-minute/per-hour), spending cap, clear history |
+| **About** | Version info and feedback link |
 
 ## Security
 
-TypoFixr includes multiple layers of security:
+TypoFixr scans text **before** sending it to Groq:
+- **Prompt injection detection** — patterns like "ignore previous instructions"
+- **Sensitive data warnings** — credit cards, SSNs, passwords, API keys, emails, phone numbers
 
-### Pre-flight Checks
-Before sending text to Groq, TypoFixr scans for:
-- **Prompt Injection Attempts**: Detects patterns like "ignore previous instructions"
-- **Sensitive Data**: Warns about credit card numbers, SSNs, passwords, API keys, emails, and phone numbers
+When detected, you can choose to proceed or cancel.
 
-When detected, you'll see a warning and can choose to proceed or cancel.
+AI responses are **validated on return** for suspicious patterns (script tags, shell commands), AI refusals, and unexpected length.
 
-### Output Validation
-AI responses are validated for:
-- **Suspicious Patterns**: Script tags, shell commands, JavaScript URLs
-- **AI Refusals**: Detects when the AI declines to process text
-- **Length Limits**: Blocks unexpectedly long responses
-
-### Rate Limiting
-Prevents accidental overuse with configurable limits:
-- Per-minute limits (default: 15)
-- Per-hour limits (default: 100)
-- Monthly token spending cap (optional)
+**Rate limiting** prevents accidental overuse (default: 15/min, 100/hr, optional monthly token cap).
 
 ## Privacy
 
@@ -208,7 +181,7 @@ make deploy
 
 ### "Permission Required" message
 
-1. Open System Preferences > Privacy & Security > Accessibility
+1. Open System Settings > Privacy & Security > Accessibility
 2. Find TypoFixr in the list
 3. Toggle it off and on again
 4. Restart TypoFixr
@@ -256,51 +229,31 @@ Contributions are welcome! Please open an issue or pull request.
 ## Changelog
 
 ### v1.3.0
-- Switched to Groq-hosted OpenAI GPT-OSS 20B (`openai/gpt-oss-20b`) with hidden reasoning (`reasoning_format: "hidden"`)
-- Single-pass correction architecture: deterministic decoding (`temperature=0`, `top_p=1`), explicit `__NO_CHANGES__` contract, no retries
-- Sentence chunking: text >= 300 chars with multiple sentences is split via `NLTokenizer` and corrected in parallel (up to 10 concurrent API calls)
-- Clause-boundary splitting: oversized sentences (> 280 chars) recursively split at `, `, `; `, ` - ` near midpoint
-- Multi-line list detection: bullet/numbered lists corrected item-by-item without prefixes to prevent model mangling
-- Boundary quote restoration: double quotes and guillemets stripped by the model are restored post-correction
-- URL healing: `NSDataDetector`-based merge fixes `NLTokenizer` splits at `?` in URLs
-- Adaptive reasoning effort: `low` for < 300 chars, `medium` for >= 300 chars
-- Linear token budget formula: `max(floor, chars + overhead)` with floor 4096/16384 and overhead 2048/3072
-- Content-aware `resolveCorrection`: accepts `finish_reason: "length"` when visible output is complete (> 50% of input)
-- Added client-side rate limiting check before each correction
-- Added HUD bottom-center positioning with safety clamping and unit tests
-- Consolidated shared helpers into `AppHelpers` enum
-- Scoped Keychain storage with service identifier and auto-migration of legacy items
-- Increased API timeout to 30 seconds for reasoning model latency
-- Removed similarity check (replaced by `__NO_CHANGES__` marker contract)
-- Removed unused `SecurityService.blocked` case and `SensitiveDataType.icon`
-- Fixed `NetworkMonitor` to properly cancel/recreate `NWPathMonitor`
-- Used `defer` for `isProcessing` cleanup in correction flow
-- Safely unwrap URL literals in views instead of force-unwrapping
+- Switched to Groq-hosted OpenAI GPT-OSS 20B reasoning model for higher-quality corrections
+- Long text is now split into sentences and corrected in parallel — faster and more reliable
+- Bullet and numbered lists are corrected item-by-item, preserving list structure
+- Boundary quotes and URLs are preserved through the correction pipeline
+- Deterministic single-pass corrections with no retries
+- Token budget scales automatically with input length
+- Scoped Keychain storage with auto-migration of legacy API keys
+- Client-side rate limiting check before each correction
+- Improved HUD notification positioning
+- Various bug fixes and internal cleanup
 
 ### v1.2.1
-- Improved contextual typo disambiguation in system prompt (better handling of garbled tokens like note/not)
-- Switched Groq request decoding to deterministic settings (`temperature=0`, `top_p=1`, `n=1`) for identical-input consistency
-- Added prompt version traceability (`v2-contextual-deterministic`) in debug logs
-- Added unit tests for prompt contract and deterministic request configuration
+- Improved contextual typo disambiguation (e.g., "note" vs "not")
+- Deterministic decoding for consistent results on identical input
 
 ### v1.2.0
-- Removed unused code (encryption, accessibility capture, bookmarks)
-- Implemented Launch at Login properly with SMAppService
-- Added offline detection with network monitoring
-- Fixed timer leaks in permission polling
-- Improved code organization and documentation
+- Launch at Login via SMAppService
+- Offline detection with network monitoring
+- Code cleanup and bug fixes
 
 ### v1.1.0
-- Added security protections (prompt injection detection, sensitive data warnings)
-- Added rate limiting (per-minute, per-hour, monthly token limits)
-- Added output validation (similarity checks, suspicious pattern detection)
-- Added HUD notifications for correction status
-- Improved character-level similarity algorithm for better typo detection
-- Fixed false positives in AI refusal detection for contractions
-- Default character limit increased to 1000
+- Security protections (prompt injection, sensitive data warnings)
+- Rate limiting and monthly spending cap
+- HUD notifications for correction status
+- Output validation
 
 ### v1.0.0
 - Initial release
-- Basic typo and grammar correction
-- Smart text selection
-- Multi-language support
