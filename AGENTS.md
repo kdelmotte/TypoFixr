@@ -2,9 +2,9 @@
 
 After any change in `Sources/TypoFixr/**` or `Tests/TypoFixrTests/**`, before final response:
 
-1. Run: `swift build -c debug`
-2. Run: `bash scripts/restart-onboarding.sh`
-3. Report build result + restart result in the final response.
+1. Run: `make build`
+2. Run: `make deploy`
+3. Report build result + deploy result in the final response.
 
-Do not skip unless the user explicitly says to skip restart.
+Do not skip unless the user explicitly says to skip deploy.
 If build fails, stop and report the failure.

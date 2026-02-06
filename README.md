@@ -14,8 +14,12 @@ A macOS menu bar app that understands context and fixes your typos and grammar m
 - **Rate Limiting**: Configurable limits to prevent accidental overuse
 - **Spending Cap**: Set monthly token limits to control API costs
 - **Launch at Login**: Optionally start TypoFixr when you log in
-- **Reliable Corrections**: Uses deterministic decoding plus a verification retry pass for empty/unchanged outputs
-- **Long-Input Friendly**: Automatically scales `max_completion_tokens` and applies a higher-capacity tier for very large text
+- **Reliable Corrections**: Single-pass deterministic decoding (`temperature=0`) with explicit `__NO_CHANGES__` contract — no retries needed
+- **Smart Chunking**: Long text is split into sentence-level chunks corrected in parallel (up to 10 concurrent API calls), with clause-boundary splitting for oversized sentences
+- **List-Aware**: Detects bullet and numbered lists, corrects each item independently to prevent model mangling of list structure
+- **Quote Preservation**: Restores boundary quotes stripped by the model during correction
+- **URL Healing**: Protects URLs containing `?` from sentence tokenizer splits via `NSDataDetector`
+- **Adaptive Token Budget**: Linear `max_completion_tokens` formula scales with input length; reasoning effort adjusts automatically (low < 300 chars, medium >= 300 chars)
 
 ## Requirements
 
@@ -34,19 +38,15 @@ A macOS menu bar app that understands context and fixes your typos and grammar m
 
 2. **Build the app**
    ```bash
-   swift build -c release
+   make build      # Debug build
+   make release    # Release build
    ```
 
-3. **Run the app**
+3. **Deploy (build + sign + launch)**
    ```bash
-   .build/release/TypoFixr
+   make deploy
    ```
-
-### Using Xcode
-
-1. Open the project folder in Xcode
-2. Select Product > Build
-3. Run the app
+   This builds a release binary, signs it with the local `TypoFixrDev` certificate (preserving accessibility permissions), resets onboarding, and launches the app.
 
 ## Setup
 
@@ -178,23 +178,25 @@ TypoFixr/
         ├── WhitespaceNormalizationTests.swift
         ├── RateLimitingTests.swift
         ├── GroqOutputValidationTests.swift
-        └── TextCorrectionServiceTests.swift
+        ├── TextCorrectionServiceTests.swift
+        ├── SentenceChunkingTests.swift
+        └── TextSelectionFlowTests.swift
 ```
 
 ### Running Tests
 
 ```bash
-swift test
+make test
 ```
 
-Note: Requires Xcode (not just Command Line Tools) for XCTest support.
+Note: Requires Xcode (not just Command Line Tools) for XCTest support. The Makefile sets `DEVELOPER_DIR` automatically.
 
 ### Dev Helper
 
-Restart TypoFixr and force onboarding to appear again:
+Build, sign, reset onboarding, and launch:
 
 ```bash
-bash scripts/restart-onboarding.sh
+make deploy
 ```
 
 ### Dependencies
@@ -254,24 +256,26 @@ Contributions are welcome! Please open an issue or pull request.
 ## Changelog
 
 ### v1.3.0
-- Switched to Groq-hosted OpenAI GPT-OSS 20B (`openai/gpt-oss-20b`)
-- Upgraded prompt contract to `v3-unified-reliable` with explicit `__NO_CHANGES__` behavior
-- Added adaptive `max_completion_tokens` policy with a very-long-input tier (4200+ chars) and one verification retry
-- Added retry handling for unchanged/empty responses and clearer length-budget error messaging
-- Fixed reasoning model token budget exhaustion: `evaluateAttempt` is now content-aware and accepts valid corrections even when `finish_reason` is `"length"` (reasoning tokens filled the budget but visible output is complete)
-- Increased token budgets (1024–4096 standard, 2048–8192 retry) to accommodate reasoning model overhead
-- Increased API timeout to 30 seconds for reasoning model latency
-- Expanded response parsing to support string and content-part message formats
+- Switched to Groq-hosted OpenAI GPT-OSS 20B (`openai/gpt-oss-20b`) with hidden reasoning (`reasoning_format: "hidden"`)
+- Single-pass correction architecture: deterministic decoding (`temperature=0`, `top_p=1`), explicit `__NO_CHANGES__` contract, no retries
+- Sentence chunking: text >= 300 chars with multiple sentences is split via `NLTokenizer` and corrected in parallel (up to 10 concurrent API calls)
+- Clause-boundary splitting: oversized sentences (> 280 chars) recursively split at `, `, `; `, ` - ` near midpoint
+- Multi-line list detection: bullet/numbered lists corrected item-by-item without prefixes to prevent model mangling
+- Boundary quote restoration: double quotes and guillemets stripped by the model are restored post-correction
+- URL healing: `NSDataDetector`-based merge fixes `NLTokenizer` splits at `?` in URLs
+- Adaptive reasoning effort: `low` for < 300 chars, `medium` for >= 300 chars
+- Linear token budget formula: `max(floor, chars + overhead)` with floor 4096/16384 and overhead 2048/3072
+- Content-aware `resolveCorrection`: accepts `finish_reason: "length"` when visible output is complete (> 50% of input)
 - Added client-side rate limiting check before each correction
 - Added HUD bottom-center positioning with safety clamping and unit tests
 - Consolidated shared helpers into `AppHelpers` enum
 - Scoped Keychain storage with service identifier and auto-migration of legacy items
+- Increased API timeout to 30 seconds for reasoning model latency
 - Removed similarity check (replaced by `__NO_CHANGES__` marker contract)
 - Removed unused `SecurityService.blocked` case and `SensitiveDataType.icon`
 - Fixed `NetworkMonitor` to properly cancel/recreate `NWPathMonitor`
 - Used `defer` for `isProcessing` cleanup in correction flow
 - Safely unwrap URL literals in views instead of force-unwrapping
-- Added `scripts/restart-onboarding.sh` helper for onboarding reset + app restart
 
 ### v1.2.1
 - Improved contextual typo disambiguation in system prompt (better handling of garbled tokens like note/not)

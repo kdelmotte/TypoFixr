@@ -20,19 +20,11 @@ This document defines acceptance criteria for all MVP features. Each test should
 | TC-1.2.2 | Character limit respected | Type 6000 chars, no selection (limit=5000) | Alert shown asking to select less text |
 | TC-1.2.3 | Empty field handled | Press shortcut on empty field | Show "No text to fix" notification |
 
-### 1.3 Correction Bookmark System
+### 1.3 Paragraph Fallback
 | ID | Test Case | Input | Expected Output |
 |----|-----------|-------|-----------------|
-| TC-1.3.1 | Bookmark created after fix | Fix "helo" → "hello", type more | Bookmark stored at position 5 |
-| TC-1.3.2 | Second fix uses bookmark | After TC-1.3.1, type "wrold", press shortcut | Only "wrold" sent (not "hello wrold") |
-| TC-1.3.3 | Bookmark resets on field change | Fix text in Slack, switch to Mail | New field has no bookmark |
-| TC-1.3.4 | Bookmark resets on app change | Fix in Notes, switch to Safari | Bookmark cleared |
-
-### 1.4 Paragraph Fallback
-| ID | Test Case | Input | Expected Output |
-|----|-----------|-------|-----------------|
-| TC-1.4.1 | Current paragraph detected | Cursor in middle of paragraph, no selection | Current paragraph sent |
-| TC-1.4.2 | Paragraph boundary = newline | Text has 3 paragraphs, cursor in 2nd | Only 2nd paragraph sent |
+| TC-1.3.1 | Current paragraph detected | Cursor in middle of paragraph, no selection | Current paragraph sent |
+| TC-1.3.2 | Paragraph boundary = newline | Text has 3 paragraphs, cursor in 2nd | Only 2nd paragraph sent |
 
 ---
 
@@ -65,12 +57,11 @@ This document defines acceptance criteria for all MVP features. Each test should
 
 ## 3. Undo/Revert Tests
 
-### 3.1 Toggle Revert (3-second window)
+### 3.1 System Undo
 | ID | Test Case | Input | Expected Output |
 |----|-----------|-------|-----------------|
-| TC-3.1.1 | Revert within window | Fix text, press shortcut again in <3s | Original text restored |
-| TC-3.1.2 | No revert after window | Fix text, wait 4s, press shortcut | New correction attempted |
-| TC-3.1.3 | Toggle back and forth | Fix → revert → fix (all <3s) | Toggles correctly |
+| TC-3.1.1 | Undo via ⌘Z | Fix text, press ⌘Z | Original text restored |
+| TC-3.1.2 | Undo works across apps | Fix text in Notes, Mail, Slack, press ⌘Z | Original restored in each |
 
 ### 3.2 History Management
 | ID | Test Case | Input | Expected Output |
@@ -92,7 +83,7 @@ This document defines acceptance criteria for all MVP features. Each test should
 ### 4.1 Default Shortcut
 | ID | Test Case | Input | Expected Output |
 |----|-----------|-------|-----------------|
-| TC-4.1.1 | Default works | Press Cmd+Shift+. with text focused | Correction triggered |
+| TC-4.1.1 | Default works | Press Cmd+Shift+D with text focused | Correction triggered |
 | TC-4.1.2 | Works in any app | Test in Safari, Notes, Slack, Mail, VS Code | Works in all |
 | TC-4.1.3 | No conflict with system | Press default shortcut | No system action triggered |
 
@@ -140,7 +131,7 @@ This document defines acceptance criteria for all MVP features. Each test should
 |----|-----------|-------|-----------------|
 | TC-6.1.1 | Successful request | Valid text, API available | Corrected text returned |
 | TC-6.1.2 | API key missing | No API key configured | Clear error message |
-| TC-6.1.3 | API timeout | Simulate 10s delay | Timeout after 5s, error shown |
+| TC-6.1.3 | API timeout | Simulate 35s delay | Timeout after 30s, error shown |
 | TC-6.1.4 | Rate limit hit | Trigger rate limit | Friendly error, retry suggestion |
 
 ### 6.2 Response Speed
@@ -181,6 +172,42 @@ Run each phrase at least 5 times and record pass/fail consistency.
 | TC-6.5.8 | "we shoudl meet tmrw" | Output contains "should meet tomorrow" |
 | TC-6.5.9 | "he siad he woudl come" | Output contains "said he would come" |
 | TC-6.5.10 | "send teh meting ntos soon" | Output contains "meeting notes" |
+
+---
+
+## 6.6 Sentence Chunking
+| ID | Test Case | Input | Expected Output |
+|----|-----------|-------|-----------------|
+| TC-6.6.1 | Short text not chunked | "teh quick fox" (< 300 chars) | Single API call, no chunking |
+| TC-6.6.2 | Long multi-sentence text chunked | 300+ chars with 3 sentences | Split into sentence-level chunks, corrected in parallel |
+| TC-6.6.3 | Adjacent short sentences merged | Two 50-char sentences | Merged into single chunk (<= 280 chars combined) |
+| TC-6.6.4 | Oversized sentence split at clause | 300+ char single sentence with `, ` | Split at clause boundary near midpoint |
+| TC-6.6.5 | Recursive clause splitting | 600+ char sentence with multiple clauses | All sub-chunks <= 280 chars |
+| TC-6.6.6 | URL healing merge | Sentence with URL containing `?` | URL not split across chunks |
+| TC-6.6.7 | Reassembly preserves gaps | Chunked text with varying whitespace | Original whitespace between sentences preserved |
+| TC-6.6.8 | Single long sentence no delimiters | 400+ chars, no clause delimiters | Falls back to single-call with medium reasoning |
+
+### 6.7 Multi-line List Detection
+| ID | Test Case | Input | Expected Output |
+|----|-----------|-------|-----------------|
+| TC-6.7.1 | Bullet list detected | "- item1\n- item2\n- item3" | Each item corrected independently without prefix |
+| TC-6.7.2 | Numbered list detected | "1. item1\n2. item2" | Each item corrected independently without prefix |
+| TC-6.7.3 | Mixed types not detected | "- item1\n1. item2" | Falls through to normal correction |
+| TC-6.7.4 | Single item not detected | "- only one item" | Falls through to normal correction |
+| TC-6.7.5 | Prefixes and gaps preserved | "- item1\n\n- item2" | Original prefixes and blank lines restored |
+
+### 6.8 Boundary Quote Restoration
+| ID | Test Case | Input | Expected Output |
+|----|-----------|-------|-----------------|
+| TC-6.8.1 | Leading double quote restored | `"hello wrold"` | `"hello world"` — leading `"` preserved |
+| TC-6.8.2 | Guillemets restored | `«bonjour»` | Boundary guillemets preserved |
+| TC-6.8.3 | Single quotes excluded | `'don't worry'` | No false restoration (apostrophe overlap) |
+
+### 6.9 Notes Normalization
+| ID | Test Case | Input | Expected Output |
+|----|-----------|-------|-----------------|
+| TC-6.9.1 | Notes multi-line list preserved | Notes bullet list with `\t•\t` prefixes | List structure preserved, items corrected individually |
+| TC-6.9.2 | Notes text skips bullet stripping | Multi-line Notes text | `normalizeCapturedTextForCorrection` skips prefix stripping so `parseMultiLineList` handles it |
 
 ---
 
@@ -295,11 +322,12 @@ Run each phrase at least 5 times and record pass/fail consistency.
 ## Automated vs Manual Tests
 
 ### Automated (Unit/Integration Tests)
-- TC-1.3.x (Bookmark system logic)
 - TC-2.x (Text replacement logic - mock API)
-- TC-3.1.x (Toggle timing logic)
 - TC-6.2.x (Response timing)
 - TC-6.4.3, TC-6.4.4 (deterministic decode and prompt contract)
+- TC-6.6.x (Sentence chunking logic)
+- TC-6.7.x (Multi-line list detection)
+- TC-6.8.x (Boundary quote restoration)
 - TC-7.x (Database operations)
 
 ### Manual Testing Required

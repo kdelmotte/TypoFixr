@@ -40,4 +40,5 @@ xcuserdata/
 # Build artifacts
 *.o
 *.d
+*.dia
 *.swiftdeps
