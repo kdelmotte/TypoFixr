@@ -76,6 +76,7 @@ bash scripts/setup-signing.sh             # One-time: create TypoFixrDev signing
 - Windows (settings, onboarding) created manually in AppDelegate with fixed sizes
 - Clipboard fallback delays: ~0.01-0.08s per operation (see timing constants in TextCorrectionService)
 - Only select text BEFORE cursor (backward), never after
+- Whitespace-only existing selections (e.g. accidental trailing space) are treated as no selection, falling through to paragraph/line fallbacks
 - Timer references must be stored and invalidated to prevent leaks
 - GPT-OSS requests must use `max_completion_tokens` (not `max_tokens`); reasoning tokens are hidden but count toward this budget
 - Token budget uses linear formula: `max(floor, chars + overhead)` where floor is 4096 (low) or 16384 (medium), overhead is 2048 (low) or 3072 (medium reasoning effort, >= 300 chars)

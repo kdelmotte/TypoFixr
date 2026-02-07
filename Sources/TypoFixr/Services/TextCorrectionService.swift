@@ -257,6 +257,11 @@ class TextCorrectionService {
             return .noSelection
         }
 
+        // Whitespace-only selection (e.g. accidental trailing space) — fall through to paragraph/line selection
+        guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return .noSelection
+        }
+
         if text.count > characterLimit {
             return .tooLong(selected: text)
         }

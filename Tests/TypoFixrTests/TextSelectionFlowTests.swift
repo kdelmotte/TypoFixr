@@ -81,6 +81,25 @@ final class TextSelectionFlowTests: XCTestCase {
     }
 
     @MainActor
+    func testWhitespaceOnlyExistingSelectionFallsThroughToParagraph() async {
+        // Simulates checkExistingSelection returning .noSelection for whitespace-only text
+        // (e.g. user accidentally selects a trailing space)
+        var paragraphCalled = false
+
+        let result = await service.resolveSelectionResult(
+            checkExistingSelection: { .noSelection },
+            tryParagraphSelection: {
+                paragraphCalled = true
+                return .success(text: "This is the paragraph.", source: .paragraphFallback)
+            },
+            tryLineSelection: { .noSelection }
+        )
+
+        XCTAssertTrue(paragraphCalled, "Paragraph fallback should run when existing selection is whitespace-only")
+        XCTAssertEqual(result, .success(text: "This is the paragraph.", source: .paragraphFallback))
+    }
+
+    @MainActor
     func testTooLongShortCircuitsWithoutFallbacks() async {
         var paragraphCalled = false
         var lineCalled = false
