@@ -20,7 +20,7 @@ class GroqService {
     private let budgetOverhead = 2048
     private let budgetOverheadMedium = 3072
     private let chunkingThreshold = 300   // match mediumReasoningThreshold
-    private let maxClauseChunkSize = 280   // ceiling for chunks; keeps all under mediumReasoningThreshold (300)
+    private let maxClauseChunkSize = 295   // ceiling for chunks; keeps all under mediumReasoningThreshold (300)
     private let minClauseFragment = 40    // minimum chars on left side of a clause split
     private let maxConcurrentChunks = 10  // concurrent API calls per correction
 
@@ -69,6 +69,26 @@ class GroqService {
         let gaps: [String]        // Separator between sentence[i] and sentence[i+1]
         let leadingGap: String    // Whitespace before first sentence
         let trailingGap: String   // Whitespace after last sentence
+    }
+
+    // MARK: - Reassembly Plan (flatten-and-throttle architecture)
+
+    enum ReassemblyPlan {
+        case single
+        case sentences(SentenceChunks)
+        case list(ParsedList)
+        case paragraphs(paragraphChunks: SentenceChunks, subPlans: [SubPlan])
+
+        struct SubPlan {
+            let chunkRange: Range<Int>   // indices in the flat leaf array
+            let kind: SubPlanKind
+        }
+
+        enum SubPlanKind {
+            case single
+            case sentences(SentenceChunks)
+            case list(ParsedList)
+        }
     }
 
     struct ParsedList {
@@ -746,6 +766,70 @@ class GroqService {
         return (sentences: finalSentences, gaps: finalGaps)
     }
 
+    // MARK: - Paragraph Splitting
+
+    /// Split text at `\n\n` (2+ consecutive newlines) into paragraphs.
+    /// Returns nil if no paragraph breaks found or only one non-empty paragraph.
+    static func splitIntoParagraphs(_ text: String) -> SentenceChunks? {
+        // Split at 2+ consecutive newlines
+        guard let regex = try? NSRegularExpression(pattern: "\\n{2,}") else { return nil }
+        let nsText = text as NSString
+        let fullRange = NSRange(location: 0, length: nsText.length)
+        let matches = regex.matches(in: text, range: fullRange)
+
+        guard !matches.isEmpty else { return nil }
+
+        // Build paragraph ranges and delimiter ranges
+        var paragraphs: [String] = []
+        var delimiters: [String] = []
+        var pos = 0
+
+        for match in matches {
+            let paraEnd = match.range.location
+            let para = nsText.substring(with: NSRange(location: pos, length: paraEnd - pos))
+            paragraphs.append(para)
+            delimiters.append(nsText.substring(with: match.range))
+            pos = match.range.location + match.range.length
+        }
+        // Last paragraph after final delimiter
+        paragraphs.append(nsText.substring(from: pos))
+
+        // Determine leading/trailing gaps from empty paragraphs
+        var leadingGap = ""
+        var trailingGap = ""
+
+        // Fold leading empty paragraphs into leadingGap
+        while !paragraphs.isEmpty
+            && paragraphs[0].trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            leadingGap += paragraphs.removeFirst()
+            if !delimiters.isEmpty {
+                leadingGap += delimiters.removeFirst()
+            }
+        }
+
+        // Fold trailing empty paragraphs into trailingGap
+        while !paragraphs.isEmpty
+            && paragraphs[paragraphs.count - 1].trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            let last = paragraphs.removeLast()
+            if !delimiters.isEmpty {
+                trailingGap = delimiters.removeLast() + last + trailingGap
+            } else {
+                trailingGap = last + trailingGap
+            }
+        }
+
+        // Need at least 2 non-empty paragraphs
+        guard paragraphs.count >= 2 else { return nil }
+
+        // delimiters now correspond to gaps between remaining paragraphs
+        return SentenceChunks(
+            sentences: paragraphs,
+            gaps: delimiters,
+            leadingGap: leadingGap,
+            trailingGap: trailingGap
+        )
+    }
+
     /// Reassemble corrected chunks with original whitespace gaps
     static func reassemble(chunks: SentenceChunks, corrected: [String]) -> String {
         var result = chunks.leadingGap
@@ -759,75 +843,208 @@ class GroqService {
         return result
     }
 
+    // MARK: - Flatten / Reassemble
+
+    /// Eagerly splits text into all leaf-level chunks (no API calls).
+    /// Returns the flat array of leaf texts and a plan for bottom-up reassembly.
+    func flattenIntoLeafChunks(_ text: String) -> ([String], ReassemblyPlan) {
+        // 1. Try list detection (top-level)
+        if let list = Self.parseMultiLineList(text), list.items.count > 1 {
+#if DEBUG
+            print("[GroqService] flatten→list: \(list.items.count) items from \(text.count) chars")
+#endif
+            let leaves = list.items.map { $0.text }
+            return (leaves, .list(list))
+        }
+
+        // 2. Try paragraph splitting (>= chunkingThreshold with \n\n)
+        if text.count >= chunkingThreshold, text.contains("\n\n"),
+           let paragraphs = Self.splitIntoParagraphs(text) {
+
+            // Paragraph-level merging: combine small adjacent paragraphs
+            let merged = mergeParagraphs(paragraphs)
+
+#if DEBUG
+            print("[GroqService] flatten→paragraphs: \(merged.sentences.count) paragraphs from \(text.count) chars")
+#endif
+
+            var allLeaves: [String] = []
+            var subPlans: [ReassemblyPlan.SubPlan] = []
+
+            for para in merged.sentences {
+                let startIdx = allLeaves.count
+
+                // Skip empty/whitespace-only paragraphs
+                guard !para.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                    allLeaves.append(para)
+                    subPlans.append(ReassemblyPlan.SubPlan(
+                        chunkRange: startIdx..<(startIdx + 1),
+                        kind: .single
+                    ))
+                    continue
+                }
+
+                // Try list within paragraph
+                if let list = Self.parseMultiLineList(para), list.items.count > 1 {
+                    let leaves = list.items.map { $0.text }
+                    allLeaves.append(contentsOf: leaves)
+                    subPlans.append(ReassemblyPlan.SubPlan(
+                        chunkRange: startIdx..<allLeaves.count,
+                        kind: .list(list)
+                    ))
+                    continue
+                }
+
+                // Try sentence chunking within paragraph
+                if para.count >= chunkingThreshold {
+                    let chunks = splitIntoSentenceChunks(para)
+                    if chunks.sentences.count > 1 {
+                        allLeaves.append(contentsOf: chunks.sentences)
+                        subPlans.append(ReassemblyPlan.SubPlan(
+                            chunkRange: startIdx..<allLeaves.count,
+                            kind: .sentences(chunks)
+                        ))
+                        continue
+                    }
+                }
+
+                // Single paragraph
+                allLeaves.append(para)
+                subPlans.append(ReassemblyPlan.SubPlan(
+                    chunkRange: startIdx..<allLeaves.count,
+                    kind: .single
+                ))
+            }
+
+            return (allLeaves, .paragraphs(paragraphChunks: merged, subPlans: subPlans))
+        }
+
+        // 3. Try sentence chunking
+        if text.count >= chunkingThreshold {
+            let chunks = splitIntoSentenceChunks(text)
+            if chunks.sentences.count > 1 {
+#if DEBUG
+                print("[GroqService] flatten→sentences: \(chunks.sentences.count) chunks from \(text.count) chars")
+#endif
+                return (chunks.sentences, .sentences(chunks))
+            }
+        }
+
+        // 4. Single text fallback
+        return ([text], .single)
+    }
+
+    /// Merge small adjacent paragraphs when combined size <= maxClauseChunkSize.
+    private func mergeParagraphs(_ paragraphs: SentenceChunks) -> SentenceChunks {
+        guard paragraphs.sentences.count > 1 else { return paragraphs }
+
+        var merged: [String] = []
+        var mergedGaps: [String] = []
+        var i = 0
+
+        while i < paragraphs.sentences.count {
+            var current = paragraphs.sentences[i]
+
+            while i + 1 < paragraphs.sentences.count {
+                let gap = paragraphs.gaps[i]
+                let next = paragraphs.sentences[i + 1]
+                if (current.count + gap.count + next.count) <= maxClauseChunkSize {
+                    current = current + gap + next
+                    i += 1
+                } else {
+                    break
+                }
+            }
+
+            merged.append(current)
+            if i < paragraphs.gaps.count {
+                mergedGaps.append(paragraphs.gaps[i])
+            }
+            i += 1
+        }
+
+        // mergedGaps should have exactly merged.count - 1 entries
+        if mergedGaps.count >= merged.count {
+            mergedGaps = Array(mergedGaps.prefix(merged.count - 1))
+        }
+
+        return SentenceChunks(
+            sentences: merged,
+            gaps: mergedGaps,
+            leadingGap: paragraphs.leadingGap,
+            trailingGap: paragraphs.trailingGap
+        )
+    }
+
+    /// Reconstruct the full corrected text from leaf results using the reassembly plan.
+    static func reassembleFromLeafResults(_ results: [String], plan: ReassemblyPlan) -> String {
+        switch plan {
+        case .single:
+            return results[0]
+
+        case .sentences(let chunks):
+            return reassemble(chunks: chunks, corrected: results)
+
+        case .list(let list):
+            return reassembleList(list: list, correctedTexts: results)
+
+        case .paragraphs(let paragraphChunks, let subPlans):
+            // Reassemble each sub-plan from its slice of results
+            var paragraphResults: [String] = []
+            for sub in subPlans {
+                let slice = Array(results[sub.chunkRange])
+                switch sub.kind {
+                case .single:
+                    paragraphResults.append(slice[0])
+                case .sentences(let chunks):
+                    paragraphResults.append(reassemble(chunks: chunks, corrected: slice))
+                case .list(let list):
+                    paragraphResults.append(reassembleList(list: list, correctedTexts: slice))
+                }
+            }
+            return reassemble(chunks: paragraphChunks, corrected: paragraphResults)
+        }
+    }
+
     // MARK: - Correct Text
     func correctText(_ text: String, apiKey: String, languagePreference: String) async throws -> CorrectionResult {
         guard !apiKey.isEmpty else {
             throw APIError.noApiKey
         }
 
-        // List-aware path: detect multi-line lists and correct items independently
-        if let list = Self.parseMultiLineList(text), list.items.count > 1 {
-#if DEBUG
-            print("[GroqService] list correction: \(list.items.count) items from \(text.count) chars")
-#endif
-            return try await correctListText(
-                list: list,
+        let (leaves, plan) = flattenIntoLeafChunks(text)
+
+        // Single leaf — no task group needed
+        if leaves.count == 1 {
+            return try await correctSingleText(
+                text: text,
                 apiKey: apiKey,
                 languagePreference: languagePreference
             )
         }
 
 #if DEBUG
-        if text.contains("\n") {
-            let preview = String(text.prefix(200))
-            let escaped = preview.unicodeScalars.map { scalar in
-                scalar.isASCII ? String(scalar) : "\\u{\(String(scalar.value, radix: 16))}"
-            }.joined()
-            print("[GroqService] parseMultiLineList returned nil for multi-line (\(text.count) chars): \(escaped)")
-        }
+        print("[GroqService] flat dispatch: \(leaves.count) leaves from \(text.count) chars")
 #endif
 
-        if text.count >= chunkingThreshold {
-            let chunks = splitIntoSentenceChunks(text)
-            if chunks.sentences.count > 1 {
-#if DEBUG
-                print("[GroqService] parallel chunking: \(chunks.sentences.count) chunks from \(text.count) chars")
-#endif
-                return try await correctTextParallel(
-                    chunks: chunks,
-                    apiKey: apiKey,
-                    languagePreference: languagePreference
-                )
-            }
-        }
-
-        return try await correctSingleText(
-            text: text,
-            apiKey: apiKey,
-            languagePreference: languagePreference
-        )
-    }
-
-    private func correctTextParallel(
-        chunks: SentenceChunks,
-        apiKey: String,
-        languagePreference: String
-    ) async throws -> CorrectionResult {
-        let sentenceCount = chunks.sentences.count
-
+        // Single TaskGroup over all leaves with maxConcurrentChunks throttle
         return try await withThrowingTaskGroup(of: (Int, CorrectionResult).self) { group in
             var launched = 0
             var nextToLaunch = 0
             var results = [(Int, CorrectionResult)]()
-            results.reserveCapacity(sentenceCount)
+            results.reserveCapacity(leaves.count)
 
             // Launch initial batch
-            while nextToLaunch < sentenceCount && launched < maxConcurrentChunks {
+            while nextToLaunch < leaves.count && launched < maxConcurrentChunks {
                 let idx = nextToLaunch
-                let sentence = chunks.sentences[idx]
+                let leaf = leaves[idx]
                 group.addTask {
+                    // Skip empty/whitespace-only leaves
+                    guard !leaf.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                        return (idx, CorrectionResult(correctedText: leaf, inputTokens: 0, outputTokens: 0))
+                    }
                     let result = try await self.correctSingleText(
-                        text: sentence,
+                        text: leaf,
                         apiKey: apiKey,
                         languagePreference: languagePreference
                     )
@@ -842,85 +1059,15 @@ class GroqService {
                 results.append(indexedResult)
                 launched -= 1
 
-                if nextToLaunch < sentenceCount {
+                if nextToLaunch < leaves.count {
                     let idx = nextToLaunch
-                    let sentence = chunks.sentences[idx]
+                    let leaf = leaves[idx]
                     group.addTask {
-                        let result = try await self.correctSingleText(
-                            text: sentence,
-                            apiKey: apiKey,
-                            languagePreference: languagePreference
-                        )
-                        return (idx, result)
-                    }
-                    launched += 1
-                    nextToLaunch += 1
-                }
-            }
-
-            // Sort by index and reassemble
-            results.sort { $0.0 < $1.0 }
-            let correctedTexts = results.map { $0.1.correctedText }
-            let totalInput = results.reduce(0) { $0 + $1.1.inputTokens }
-            let totalOutput = results.reduce(0) { $0 + $1.1.outputTokens }
-
-            let reassembled = Self.reassemble(chunks: chunks, corrected: correctedTexts)
-
-            return CorrectionResult(
-                correctedText: reassembled,
-                inputTokens: totalInput,
-                outputTokens: totalOutput
-            )
-        }
-    }
-
-    private func correctListText(
-        list: ParsedList,
-        apiKey: String,
-        languagePreference: String
-    ) async throws -> CorrectionResult {
-        let itemCount = list.items.count
-
-        return try await withThrowingTaskGroup(of: (Int, CorrectionResult).self) { group in
-            var launched = 0
-            var nextToLaunch = 0
-            var results = [(Int, CorrectionResult)]()
-            results.reserveCapacity(itemCount)
-
-            // Launch initial batch
-            while nextToLaunch < itemCount && launched < maxConcurrentChunks {
-                let idx = nextToLaunch
-                let itemText = list.items[idx].text
-                group.addTask {
-                    // Skip empty items — return original text unchanged
-                    guard !itemText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-                        return (idx, CorrectionResult(correctedText: itemText, inputTokens: 0, outputTokens: 0))
-                    }
-                    let result = try await self.correctSingleText(
-                        text: itemText,
-                        apiKey: apiKey,
-                        languagePreference: languagePreference
-                    )
-                    return (idx, result)
-                }
-                launched += 1
-                nextToLaunch += 1
-            }
-
-            // Collect results and launch remaining
-            for try await indexedResult in group {
-                results.append(indexedResult)
-                launched -= 1
-
-                if nextToLaunch < itemCount {
-                    let idx = nextToLaunch
-                    let itemText = list.items[idx].text
-                    group.addTask {
-                        guard !itemText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-                            return (idx, CorrectionResult(correctedText: itemText, inputTokens: 0, outputTokens: 0))
+                        guard !leaf.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                            return (idx, CorrectionResult(correctedText: leaf, inputTokens: 0, outputTokens: 0))
                         }
                         let result = try await self.correctSingleText(
-                            text: itemText,
+                            text: leaf,
                             apiKey: apiKey,
                             languagePreference: languagePreference
                         )
@@ -937,7 +1084,7 @@ class GroqService {
             let totalInput = results.reduce(0) { $0 + $1.1.inputTokens }
             let totalOutput = results.reduce(0) { $0 + $1.1.outputTokens }
 
-            let reassembled = Self.reassembleList(list: list, correctedTexts: correctedTexts)
+            let reassembled = Self.reassembleFromLeafResults(correctedTexts, plan: plan)
 
             return CorrectionResult(
                 correctedText: reassembled,
