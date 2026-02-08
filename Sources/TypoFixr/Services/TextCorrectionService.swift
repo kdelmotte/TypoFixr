@@ -182,6 +182,23 @@ class TextCorrectionService {
                 return
             }
 
+            await ensureSelectionBeforePaste(
+                selectionSource: selectionSource,
+                probeSelection: { [self] in hasActiveTextSelection() },
+                reSelect: { [self] in
+                    switch selectionSource {
+                    case .paragraphFallback:
+                        await simulateKeyPress(keyCode: 126, modifiers: [.maskAlternate, .maskShift])
+                        try? await Task.sleep(nanoseconds: selectionDelay)
+                    case .lineFallback:
+                        await simulateKeyPress(keyCode: 123, modifiers: [.maskCommand, .maskShift])
+                        try? await Task.sleep(nanoseconds: selectionDelay)
+                    case .existingSelection:
+                        break
+                    }
+                }
+            )
+
             // Put corrected text in clipboard and paste
             pasteboard.clearContents()
             pasteboard.setString(correctedWithWhitespace, forType: .string)
@@ -245,10 +262,52 @@ class TextCorrectionService {
         return selectionResult
     }
 
+    /// Ensures text is still selected before pasting corrected text.
+    /// If the selection was lost (e.g. during API call in some apps), re-selects using the original strategy.
+    /// For .existingSelection source, the user made the selection — we trust it persists.
+    @MainActor
+    func ensureSelectionBeforePaste(
+        selectionSource: SelectionSource,
+        probeSelection: () -> Bool,
+        reSelect: () async -> Void
+    ) async {
+        // User-made selections are trusted to persist
+        guard selectionSource != .existingSelection else { return }
+
+        // Check if selection is still active
+        guard !probeSelection() else { return }
+
+        // Selection lost — re-select using the original strategy
+        await reSelect()
+    }
+
+    // MARK: - AX Selection Check
+
+    /// Lightweight AX check: is there actually selected text in the focused element?
+    /// Returns true (conservative) if AX check fails or is unsupported.
+    private func hasActiveTextSelection() -> Bool {
+        let systemWide = AXUIElementCreateSystemWide()
+        var focusedElement: AnyObject?
+        guard AXUIElementCopyAttributeValue(systemWide, kAXFocusedUIElementAttribute as CFString, &focusedElement) == .success else {
+            return true
+        }
+        var selectedText: AnyObject?
+        let result = AXUIElementCopyAttributeValue(focusedElement as! AXUIElement, kAXSelectedTextAttribute as CFString, &selectedText)
+        guard result == .success else {
+            return true
+        }
+        return !(selectedText as? String ?? "").isEmpty
+    }
+
     // MARK: - Selection Strategies
 
     /// Check if user already has text selected (Cmd+C to copy)
     private func checkExistingSelection(pasteboard: NSPasteboard, characterLimit: Int) async -> SelectionResult {
+        // AX pre-check: if no text is selected, skip Cmd+C to prevent block-copy in Notion
+        guard hasActiveTextSelection() else {
+            return .noSelection
+        }
+
         pasteboard.clearContents()
         await simulateKeyPress(keyCode: 8, modifiers: .maskCommand) // C key
         try? await Task.sleep(nanoseconds: clipboardDelay)
@@ -383,8 +442,29 @@ class TextCorrectionService {
         return result
     }
 
+    /// Virtual key codes for modifier keys used in flagsChanged events
+    private static let modifierKeyCodes: [(flag: CGEventFlags, keyCode: CGKeyCode)] = [
+        (.maskShift,     56),  // Left Shift
+        (.maskCommand,   55),  // Left Command
+        (.maskAlternate, 58),  // Left Option
+        (.maskControl,   59),  // Left Control
+    ]
+
     private func simulateKeyPress(keyCode: CGKeyCode, modifiers: CGEventFlags) async {
         let source = CGEventSource(stateID: .hidSystemState)
+
+        // Send flagsChanged events for modifier key presses (required for Electron/Chromium apps)
+        var activeFlags = CGEventFlags()
+        if !modifiers.isEmpty {
+            for (flag, modKeyCode) in Self.modifierKeyCodes where modifiers.contains(flag) {
+                activeFlags.insert(flag)
+                if let flagDown = CGEvent(keyboardEventSource: source, virtualKey: modKeyCode, keyDown: true) {
+                    flagDown.type = .flagsChanged
+                    flagDown.flags = activeFlags
+                    flagDown.post(tap: .cghidEventTap)
+                }
+            }
+        }
 
         // Key down
         if let keyDown = CGEvent(keyboardEventSource: source, virtualKey: keyCode, keyDown: true) {
@@ -399,6 +479,18 @@ class TextCorrectionService {
         if let keyUp = CGEvent(keyboardEventSource: source, virtualKey: keyCode, keyDown: false) {
             keyUp.flags = modifiers
             keyUp.post(tap: .cghidEventTap)
+        }
+
+        // Release modifier keys in reverse order
+        if !modifiers.isEmpty {
+            for (flag, modKeyCode) in Self.modifierKeyCodes.reversed() where modifiers.contains(flag) {
+                activeFlags.remove(flag)
+                if let flagUp = CGEvent(keyboardEventSource: source, virtualKey: modKeyCode, keyDown: false) {
+                    flagUp.type = .flagsChanged
+                    flagUp.flags = activeFlags
+                    flagUp.post(tap: .cghidEventTap)
+                }
+            }
         }
     }
 

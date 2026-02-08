@@ -105,6 +105,9 @@ bash scripts/setup-signing.sh             # One-time: create TypoFixrDev signing
 - `__NO_CHANGES__` marker must be checked on raw content BEFORE `sanitizeOutput` — list artifact normalization can prepend prefixes that corrupt the marker
 - Notes single-line dash stripping is a known trade-off: can't distinguish "Notes bullet artifact" from "user-typed dash" for single-line text
 - `restoreBoundaryQuotes` only handles double quotes and guillemets; single quotes (`'`) excluded due to apostrophe false positives on corrected contractions
+- `simulateKeyPress` sends `flagsChanged` events for modifier keys before/after the main key — required for Electron/Chromium apps (Notion) to recognize selection shortcuts; harmless for native apps
+- `checkExistingSelection` uses AX pre-check (`hasActiveTextSelection()`) before Cmd+C to filter block-copy false positives in Electron apps (Notion copies entire block on Cmd+C when nothing is selected)
+- `ensureSelectionBeforePaste` uses a direct AX check (~1-5ms) instead of a sentinel probe to detect lost selection before paste; re-selects using original strategy if needed; skips for `.existingSelection`
 
 ## AI Prompt Strategy
 Fix only clear errors, use sentence context to disambiguate typos (e.g., "form" vs "from"), preserve tone/style, don't rephrase, keep informal language, preserve emojis/formatting, and return ONLY corrected text. If nothing needs correction, return `__NO_CHANGES__`.
