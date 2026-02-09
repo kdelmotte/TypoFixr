@@ -152,6 +152,9 @@ class TextCorrectionService {
         }
 
         do {
+            // Show loading HUD while API call is in flight
+            HUDService.shared.showLoading(title: "Fixing...", subtitle: "Checking your text")
+
             // Call Groq API
             let result = try await groqService.correctText(
                 textToCorrect,

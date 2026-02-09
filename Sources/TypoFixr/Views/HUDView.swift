@@ -5,13 +5,20 @@ struct HUDView: View {
     let title: String
     let subtitle: String
     let isSuccess: Bool
-    
+    var isLoading: Bool = false
+
     var body: some View {
         HStack(spacing: 12) {
-            // Icon
-            Image(systemName: icon)
-                .font(.system(size: 24, weight: .semibold))
-                .foregroundColor(isSuccess ? .green : .red)
+            // Icon or spinner
+            if isLoading {
+                ProgressView()
+                    .controlSize(.small)
+                    .frame(width: 24, height: 24)
+            } else {
+                Image(systemName: icon)
+                    .font(.system(size: 24, weight: .semibold))
+                    .foregroundColor(isSuccess ? .green : .red)
+            }
             
             // Text content
             VStack(alignment: .leading, spacing: 2) {
@@ -77,6 +84,14 @@ struct HUDView_Previews: PreviewProvider {
                 title: "Error",
                 subtitle: "Could not replace text",
                 isSuccess: false
+            )
+
+            HUDView(
+                icon: "",
+                title: "Fixing...",
+                subtitle: "Checking your text",
+                isSuccess: true,
+                isLoading: true
             )
         }
         .padding(40)

@@ -22,15 +22,21 @@ class HUDService {
             self?.showOnMainThread(title: title, subtitle: subtitle, isSuccess: isSuccess, duration: duration)
         }
     }
-    
+
+    func showLoading(title: String, subtitle: String) {
+        DispatchQueue.main.async { [weak self] in
+            self?.showLoadingOnMainThread(title: title, subtitle: subtitle)
+        }
+    }
+
     private func showOnMainThread(title: String, subtitle: String, isSuccess: Bool, duration: TimeInterval) {
         // Cancel any existing dismiss timer
         dismissTimer?.invalidate()
         dismissTimer = nil
-        
+
         // Determine the icon based on success/error state
         let icon = isSuccess ? "checkmark.circle.fill" : "xmark.circle.fill"
-        
+
         // Create the SwiftUI view
         let hudView = HUDView(
             icon: icon,
@@ -38,36 +44,56 @@ class HUDService {
             subtitle: subtitle,
             isSuccess: isSuccess
         )
-        
+
+        presentHUDView(AnyView(hudView))
+
+        // Schedule auto-dismiss
+        dismissTimer = Timer.scheduledTimer(withTimeInterval: duration, repeats: false) { [weak self] _ in
+            self?.dismiss()
+        }
+    }
+
+    private func showLoadingOnMainThread(title: String, subtitle: String) {
+        dismissTimer?.invalidate()
+        dismissTimer = nil
+
+        let hudView = HUDView(
+            icon: "",
+            title: title,
+            subtitle: subtitle,
+            isSuccess: true,
+            isLoading: true
+        )
+
+        presentHUDView(AnyView(hudView))
+        // No auto-dismiss — loading HUD stays until replaced
+    }
+
+    private func presentHUDView(_ view: AnyView) {
         // Create or reuse the window
         if hudWindow == nil {
             hudWindow = createHUDWindow()
         }
-        
+
         guard let window = hudWindow else { return }
-        
+
         // Update the content
-        let hostingView = NSHostingView(rootView: hudView)
+        let hostingView = NSHostingView(rootView: view)
         hostingView.frame = CGRect(origin: .zero, size: hostingView.fittingSize)
-        
+
         window.contentView = hostingView
         window.setContentSize(hostingView.fittingSize)
-        
+
         // Position the window at the bottom-center of the display under the cursor
         positionWindow(window)
-        
+
         // Show with fade-in animation
         window.alphaValue = 0
         window.orderFrontRegardless()
-        
+
         NSAnimationContext.runAnimationGroup { context in
             context.duration = 0.2
             window.animator().alphaValue = 1
-        }
-        
-        // Schedule auto-dismiss
-        dismissTimer = Timer.scheduledTimer(withTimeInterval: duration, repeats: false) { [weak self] _ in
-            self?.dismiss()
         }
     }
     
