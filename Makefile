@@ -7,7 +7,7 @@ APP_BUNDLE  := $(HOME)/Applications/TypoFixr.app
 APP_BINARY  := $(APP_BUNDLE)/Contents/MacOS/TypoFixr
 APP_DOMAIN  := com.typofixr.app
 
-.PHONY: build release test deploy
+.PHONY: build release test deploy xcode-build xcode-test
 
 build:
 	swift build -c debug
@@ -33,3 +33,9 @@ deploy: release
 	@echo "==> Launching..."
 	open "$(APP_BUNDLE)"
 	@echo "Done. Accessibility permissions should persist across deploys."
+
+xcode-build:
+	xcodebuild -project TypoFixr.xcodeproj -scheme TypoFixr -configuration Debug build
+
+xcode-test:
+	xcodebuild -project TypoFixr.xcodeproj -scheme TypoFixr -configuration Debug test
