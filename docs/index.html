@@ -28,9 +28,10 @@
       <p class="eyebrow">macOS menu bar utility</p>
       <h1>Fix selected text without losing your voice.</h1>
       <p class="tagline">Highlight text, press <span class="kbd">⌘⇧D</span>, and TypoFixr cleans up typos and grammar in place while keeping tone, structure, and formatting intact.</p>
-      <a href="https://github.com/kdelmotte/TypoFixr/releases/latest/download/TypoFixr.dmg" class="btn-download">Download for macOS</a>
+      <a href="https://github.com/kdelmotte/TypoFixr/releases/latest/download/TypoFixr.dmg" class="btn-download is-disabled" data-download-cta aria-disabled="true">Checking for latest DMG…</a>
       <p class="hero-meta">Signed &amp; notarized DMG &middot; Requires macOS 13+ &middot; Bring your own Groq API key</p>
       <p class="hero-meta">After download: open the DMG and drag TypoFixr to Applications before first launch.</p>
+      <p class="download-status" data-download-status>First signed release is not published yet. This button will turn into a direct DMG download automatically once the notarized installer exists.</p>
     </div>
   </header>
 
@@ -120,7 +121,7 @@
     <div class="container">
       <h2>Ready to clean up your writing?</h2>
       <p>Download TypoFixr, add your Groq key, and start fixing selected text from anywhere on macOS.</p>
-      <a href="https://github.com/kdelmotte/TypoFixr/releases/latest/download/TypoFixr.dmg" class="btn-download">Download for macOS</a>
+      <a href="https://github.com/kdelmotte/TypoFixr/releases/latest/download/TypoFixr.dmg" class="btn-download is-disabled" data-download-cta aria-disabled="true">Checking for latest DMG…</a>
       <p class="hero-meta">Open source &middot; MIT License &middot; Signed &amp; notarized release builds</p>
     </div>
   </section>
@@ -135,5 +136,61 @@
       <p>Made by Kevin Delmotte</p>
     </div>
   </footer>
+
+  <script>
+    (async () => {
+      const ctas = Array.from(document.querySelectorAll("[data-download-cta]"));
+      const status = document.querySelector("[data-download-status]");
+      const fallbackUrl = "https://github.com/kdelmotte/TypoFixr/releases/latest/download/TypoFixr.dmg";
+      const apiUrl = "https://api.github.com/repos/kdelmotte/TypoFixr/releases/latest";
+
+      function setUnavailable(message) {
+        ctas.forEach((cta) => {
+          cta.textContent = "Installer coming soon";
+          cta.setAttribute("aria-disabled", "true");
+          cta.classList.add("is-disabled");
+          cta.removeAttribute("href");
+        });
+        if (status) {
+          status.textContent = message;
+        }
+      }
+
+      try {
+        const response = await fetch(apiUrl, {
+          headers: {
+            "Accept": "application/vnd.github+json"
+          }
+        });
+
+        if (!response.ok) {
+          throw new Error("Unable to load release metadata");
+        }
+
+        const release = await response.json();
+        const dmg = Array.isArray(release.assets)
+          ? release.assets.find((asset) => asset.name === "TypoFixr.dmg")
+          : null;
+
+        if (!dmg || !dmg.browser_download_url) {
+          setUnavailable("The website is live, but the first signed DMG has not been published yet.");
+          return;
+        }
+
+        ctas.forEach((cta) => {
+          cta.textContent = "Download for macOS";
+          cta.href = dmg.browser_download_url || fallbackUrl;
+          cta.removeAttribute("aria-disabled");
+          cta.classList.remove("is-disabled");
+        });
+
+        if (status) {
+          status.textContent = `Latest installer: ${release.tag_name} · direct DMG download`;
+        }
+      } catch (error) {
+        setUnavailable("Release lookup is temporarily unavailable. Check back in a moment or use the GitHub releases page.");
+      }
+    })();
+  </script>
 </body>
 </html>
