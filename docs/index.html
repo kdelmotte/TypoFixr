@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TypoFixr — Fix selected text without losing your voice</title>
+  <meta name="description" content="TypoFixr is a macOS menu bar app that fixes selected text in place while preserving tone and formatting. Bring your own Groq API key.">
+
+  <meta property="og:title" content="TypoFixr — Fix selected text without losing your voice">
+  <meta property="og:description" content="A focused macOS menu bar utility for fixing selected text in place.">
+  <meta property="og:image" content="https://kdelmotte.github.io/TypoFixr/icon.png">
+  <meta property="og:url" content="https://kdelmotte.github.io/TypoFixr/">
+  <meta property="og:type" content="website">
+
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="TypoFixr — Fix selected text without losing your voice">
+  <meta name="twitter:description" content="A focused macOS menu bar utility for fixing selected text in place.">
+  <meta name="twitter:image" content="https://kdelmotte.github.io/TypoFixr/icon.png">
+
+  <link rel="icon" type="image/png" href="icon.png">
+  <link rel="apple-touch-icon" href="icon.png">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="hero">
+    <div class="container">
+      <img src="icon.png" alt="TypoFixr app icon" class="hero-icon">
+      <p class="eyebrow">macOS menu bar utility</p>
+      <h1>Fix selected text without losing your voice.</h1>
+      <p class="tagline">Highlight text, press <span class="kbd">⌘⇧D</span>, and TypoFixr cleans up typos and grammar in place while keeping tone, structure, and formatting intact.</p>
+      <a href="https://github.com/kdelmotte/TypoFixr/releases/latest/download/TypoFixr.dmg" class="btn-download">Download for macOS</a>
+      <p class="hero-meta">Signed &amp; notarized DMG &middot; Requires macOS 13+ &middot; Bring your own Groq API key</p>
+      <p class="hero-meta">After download: open the DMG and drag TypoFixr to Applications before first launch.</p>
+    </div>
+  </header>
+
+  <section>
+    <div class="container">
+      <h2 class="section-title">Why TypoFixr</h2>
+      <p class="section-subtitle">Built for the moment when your words are mostly right and you just want the mistakes gone.</p>
+
+      <div class="features-grid">
+        <article class="feature-card">
+          <h3>Fix text in place</h3>
+          <p>TypoFixr replaces the text you selected instead of bouncing you through a separate editor.</p>
+        </article>
+        <article class="feature-card">
+          <h3>Preserve tone and formatting</h3>
+          <p>It focuses on obvious mistakes while keeping phrasing, lists, and paragraph structure intact.</p>
+        </article>
+        <article class="feature-card">
+          <h3>Works from the menu bar</h3>
+          <p>No Dock clutter. Trigger it with a shortcut and keep typing in the app you already use.</p>
+        </article>
+        <article class="feature-card">
+          <h3>Undo-friendly</h3>
+          <p>Corrections paste back like normal text changes, so standard undo works immediately.</p>
+        </article>
+        <article class="feature-card">
+          <h3>Bring your own Groq key</h3>
+          <p>Requests go directly from your Mac to Groq using your own account. No TypoFixr proxy or app account.</p>
+        </article>
+        <article class="feature-card">
+          <h3>Security warnings</h3>
+          <p>TypoFixr can warn about suspicious prompt text and sensitive data before anything is sent.</p>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <section class="workflow">
+    <div class="container">
+      <h2 class="section-title">How it works</h2>
+      <p class="section-subtitle">Three steps, no extra editor, no copy-paste gymnastics.</p>
+
+      <div class="steps">
+        <article class="step">
+          <div class="step-number">1</div>
+          <h3>Select text</h3>
+          <p>Highlight the text you want fixed in Notes, Mail, Slack, a browser, or another Mac app.</p>
+        </article>
+        <article class="step">
+          <div class="step-number">2</div>
+          <h3>Press the shortcut</h3>
+          <p>Use <span class="kbd">⌘⇧D</span> or your custom shortcut to send the selected text for correction.</p>
+        </article>
+        <article class="step">
+          <div class="step-number">3</div>
+          <h3>Keep moving</h3>
+          <p>TypoFixr pastes the corrected version back in place so you can continue writing immediately.</p>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <section class="trust">
+    <div class="container trust-grid">
+      <div>
+        <h2 class="section-title left">Requirements</h2>
+        <ul class="check-list">
+          <li>macOS 13 Ventura or later</li>
+          <li>A Groq API key from <a href="https://console.groq.com/keys">console.groq.com</a></li>
+          <li>Internet access when running corrections</li>
+          <li>Accessibility permission so TypoFixr can replace selected text</li>
+        </ul>
+      </div>
+      <div>
+        <h2 class="section-title left">Privacy</h2>
+        <ul class="check-list">
+          <li>Your API key is stored locally in macOS Keychain.</li>
+          <li>Text is only accessed when you trigger a correction.</li>
+          <li>Correction history is stored locally on your Mac.</li>
+          <li>TypoFixr does not require an app account.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section class="download-cta">
+    <div class="container">
+      <h2>Ready to clean up your writing?</h2>
+      <p>Download TypoFixr, add your Groq key, and start fixing selected text from anywhere on macOS.</p>
+      <a href="https://github.com/kdelmotte/TypoFixr/releases/latest/download/TypoFixr.dmg" class="btn-download">Download for macOS</a>
+      <p class="hero-meta">Open source &middot; MIT License &middot; Signed &amp; notarized release builds</p>
+    </div>
+  </section>
+
+  <footer>
+    <div class="container footer-content">
+      <div class="footer-links">
+        <a href="https://github.com/kdelmotte/TypoFixr">GitHub</a>
+        <a href="https://github.com/kdelmotte/TypoFixr/releases/latest">Latest release</a>
+        <a href="https://github.com/kdelmotte/TypoFixr/blob/main/LICENSE">MIT License</a>
+      </div>
+      <p>Made by Kevin Delmotte</p>
+    </div>
+  </footer>
+</body>
+</html>

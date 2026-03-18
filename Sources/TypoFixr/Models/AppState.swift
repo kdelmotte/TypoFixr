@@ -9,7 +9,6 @@ enum MenuBarIconState {
     case success
     case error
     case noPermission
-    case rateLimited
     case offline
 }
 
@@ -53,30 +52,6 @@ class AppState: ObservableObject {
             UserDefaults.standard.set(securityWarningsEnabled, forKey: "securityWarningsEnabled")
         }
     }
-    // MARK: - Rate Limiting
-    @Published var correctionsPerMinuteLimit: Int {
-        didSet {
-            UserDefaults.standard.set(correctionsPerMinuteLimit, forKey: "correctionsPerMinuteLimit")
-        }
-    }
-    @Published var correctionsPerHourLimit: Int {
-        didSet {
-            UserDefaults.standard.set(correctionsPerHourLimit, forKey: "correctionsPerHourLimit")
-        }
-    }
-    private var recentCorrectionTimestamps: [Date] = []
-    
-    // MARK: - Spending Cap
-    @Published var monthlyTokenLimit: Int {
-        didSet {
-            UserDefaults.standard.set(monthlyTokenLimit, forKey: "monthlyTokenLimit")
-        }
-    }
-    @Published var spendingCapEnabled: Bool {
-        didSet {
-            UserDefaults.standard.set(spendingCapEnabled, forKey: "spendingCapEnabled")
-        }
-    }
     
     // MARK: - API Configuration
     @Published var groqApiKey: String {
@@ -87,7 +62,7 @@ class AppState: ObservableObject {
 
     /// Validates that the API key is present and has the expected format
     var hasValidApiKey: Bool {
-        !groqApiKey.isEmpty && groqApiKey.hasPrefix("gsk_")
+        GroqAPIKeyValidationState(apiKey: groqApiKey) == .valid
     }
 
     // MARK: - Database
@@ -101,14 +76,6 @@ class AppState: ObservableObject {
         
         // Load security & privacy settings
         self.securityWarningsEnabled = UserDefaults.standard.object(forKey: "securityWarningsEnabled") as? Bool ?? true
-
-        // Load rate limiting settings
-        self.correctionsPerMinuteLimit = UserDefaults.standard.object(forKey: "correctionsPerMinuteLimit") as? Int ?? 15
-        self.correctionsPerHourLimit = UserDefaults.standard.object(forKey: "correctionsPerHourLimit") as? Int ?? 100
-        
-        // Load spending cap settings
-        self.monthlyTokenLimit = UserDefaults.standard.object(forKey: "monthlyTokenLimit") as? Int ?? 100000
-        self.spendingCapEnabled = UserDefaults.standard.object(forKey: "spendingCapEnabled") as? Bool ?? false
         
         // Load shortcut
         if let data = UserDefaults.standard.data(forKey: "keyboardShortcut"),
@@ -131,10 +98,6 @@ class AppState: ObservableObject {
     
     // MARK: - History Management
     func addCorrection(_ correction: Correction) {
-        // Track for rate limiting
-        recentCorrectionTimestamps.append(Date())
-        cleanupOldTimestamps()
-
         correctionHistory.insert(correction, at: 0)
         // Keep only last 10 in memory
         if correctionHistory.count > 10 {
@@ -159,70 +122,13 @@ class AppState: ObservableObject {
         correctionHistory.removeAll()
         databaseManager.clearCorrectionHistory()
     }
-    
-    // MARK: - Rate Limiting
-    
-    /// Checks if a new correction is allowed based on rate limits
-    /// Returns true if allowed, false if rate limited
-    func checkRateLimit() -> Bool {
-        cleanupOldTimestamps()
-        
-        let now = Date()
-        let oneMinuteAgo = now.addingTimeInterval(-60)
-        let oneHourAgo = now.addingTimeInterval(-3600)
-        
-        let correctionsLastMinute = recentCorrectionTimestamps.filter { $0 > oneMinuteAgo }.count
-        let correctionsLastHour = recentCorrectionTimestamps.filter { $0 > oneHourAgo }.count
-        
-        if correctionsLastMinute >= correctionsPerMinuteLimit {
-            return false
-        }
-        
-        if correctionsLastHour >= correctionsPerHourLimit {
-            return false
-        }
-        
-        // Check spending cap
-        if spendingCapEnabled {
-            let thisMonth = Calendar.current.date(from: Calendar.current.dateComponents([.year, .month], from: now)) ?? now
-            let monthlyTokens = databaseManager.getTotalTokensUsed(since: thisMonth)
-            let totalMonthlyTokens = monthlyTokens.input + monthlyTokens.output
-            
-            if totalMonthlyTokens >= monthlyTokenLimit {
-                return false
-            }
-        }
-        
-        return true
-    }
-    
-    private func cleanupOldTimestamps() {
-        let oneHourAgo = Date().addingTimeInterval(-3600)
-        recentCorrectionTimestamps = recentCorrectionTimestamps.filter { $0 > oneHourAgo }
-    }
-    
-    /// Returns current usage stats for display
-    func getCurrentUsageStats() -> (minuteCount: Int, hourCount: Int, monthlyTokens: Int) {
-        cleanupOldTimestamps()
-        
-        let now = Date()
-        let oneMinuteAgo = now.addingTimeInterval(-60)
-        let oneHourAgo = now.addingTimeInterval(-3600)
-        let thisMonth = Calendar.current.date(from: Calendar.current.dateComponents([.year, .month], from: now)) ?? now
-
-        let minuteCount = recentCorrectionTimestamps.filter { $0 > oneMinuteAgo }.count
-        let hourCount = recentCorrectionTimestamps.filter { $0 > oneHourAgo }.count
-        let monthlyTokens = databaseManager.getTotalTokensUsed(since: thisMonth)
-        
-        return (minuteCount, hourCount, monthlyTokens.input + monthlyTokens.output)
-    }
 
     // MARK: - Icon State Management
     func setIconState(_ state: MenuBarIconState, autoReset: Bool = false, duration: TimeInterval = 3.0) {
         iconResetTimer?.invalidate()
         iconState = state
 
-        if autoReset && state != .normal && state != .processing && state != .noPermission && state != .rateLimited {
+        if autoReset && state != .normal && state != .processing && state != .noPermission {
             iconResetTimer = Timer.scheduledTimer(withTimeInterval: duration, repeats: false) { [weak self] _ in
                 DispatchQueue.main.async {
                     self?.iconState = .normal

@@ -12,7 +12,7 @@ A macOS menu bar app that understands context and fixes your typos and grammar m
 - **List-Aware**: Bullet and numbered lists are corrected item-by-item, preserving structure
 - **Multi-language**: Supports 50+ languages with auto-detection
 - **Security**: Detects prompt injection attempts, warns about sensitive data, validates AI output
-- **Rate Limiting & Spending Cap**: Configurable per-minute/per-hour limits and optional monthly token cap
+- **Local History**: Corrections are stored locally on your Mac and can be cleared anytime
 - **Launch at Login**: Optionally start TypoFixr when you log in
 - **Undo**: Use `⌘Z` in any app to revert a correction
 
@@ -22,6 +22,14 @@ A macOS menu bar app that understands context and fixes your typos and grammar m
 - Groq API key ([get one here](https://console.groq.com/keys))
 
 ## Installation
+
+### Download Latest Release
+
+1. Visit the project site: [kdelmotte.github.io/TypoFixr](https://kdelmotte.github.io/TypoFixr/)
+2. Or download the latest DMG directly: [TypoFixr.dmg](https://github.com/kdelmotte/TypoFixr/releases/latest/download/TypoFixr.dmg)
+3. Open the DMG and drag TypoFixr to Applications
+4. Launch TypoFixr and complete onboarding
+5. Add your Groq API key when prompted
 
 ### From Source
 
@@ -87,7 +95,7 @@ Click the menu bar icon > Settings:
 | **General** | Launch at Login |
 | **Shortcut** | Change the trigger shortcut (default `⌘⇧D`) |
 | **API** | Enter your Groq API key |
-| **Security** | Toggle warnings, rate limits (per-minute/per-hour), spending cap, clear history |
+| **Security** | Toggle warnings and clear local history |
 | **About** | Version info and feedback link |
 
 ## Security
@@ -99,8 +107,6 @@ TypoFixr scans text **before** sending it to Groq:
 When detected, you can choose to proceed or cancel.
 
 AI responses are **validated on return** for suspicious patterns (script tags, shell commands), AI refusals, and unexpected length.
-
-**Rate limiting** prevents accidental overuse (default: 15/min, 100/hr, optional monthly token cap).
 
 ## Privacy
 
@@ -123,7 +129,8 @@ TypoFixr/
 │       ├── AppDelegate.swift     # Menu bar setup
 │       ├── Models/
 │       │   ├── AppState.swift    # App state management
-│       │   └── Correction.swift  # Correction model
+│       │   ├── Correction.swift  # Correction model
+│       │   └── OnboardingFlow.swift  # Onboarding step/gating logic
 │       ├── Services/
 │       │   ├── TextCorrectionService.swift  # Main correction logic
 │       │   ├── GroqService.swift             # AI integration
@@ -133,7 +140,9 @@ TypoFixr/
 │       │   └── HUDService.swift             # HUD notifications
 │       ├── Database/
 │       │   └── DatabaseManager.swift        # SQLite storage
+│       ├── Assets.xcassets/                 # App icon and brand assets
 │       └── Views/
+│           ├── Branding.swift               # Shared TypoFixr branding
 │           ├── MenuBarView.swift            # Dropdown menu
 │           ├── SettingsView.swift           # Settings window
 │           ├── OnboardingView.swift         # First-run experience
@@ -149,7 +158,7 @@ TypoFixr/
         ├── SecurityServiceTests.swift
         ├── HUDViewTests.swift
         ├── WhitespaceNormalizationTests.swift
-        ├── RateLimitingTests.swift
+        ├── OnboardingFlowTests.swift
         ├── GroqOutputValidationTests.swift
         ├── TextCorrectionServiceTests.swift
         ├── SentenceChunkingTests.swift
@@ -210,13 +219,13 @@ If you see warnings about sensitive data:
 2. Choose "Send Anyway" if you're sure it's safe
 3. Or "Cancel" to keep your original text
 
-## Cost Estimation
+## Pricing
 
 TypoFixr currently uses Groq-hosted OpenAI GPT-OSS 20B (`openai/gpt-oss-20b`).
 
-Costs can change over time, so check your Groq dashboard/pricing for current token rates.
+Groq pricing and free-tier limits can change over time, so check your Groq dashboard for the current numbers.
 
-Use the **Spending Cap** feature in Settings > Security to set monthly limits and monitor usage.
+For normal personal usage, Groq's free tier is likely enough, but TypoFixr does not add its own billing layer or markup.
 
 ## License
 
@@ -236,7 +245,7 @@ Contributions are welcome! Please open an issue or pull request.
 - Deterministic single-pass corrections with no retries
 - Token budget scales automatically with input length
 - Scoped Keychain storage with auto-migration of legacy API keys
-- Client-side rate limiting check before each correction
+- Branded app assets plus a more polished onboarding and settings experience
 - Improved HUD notification positioning
 - Various bug fixes and internal cleanup
 
@@ -251,7 +260,6 @@ Contributions are welcome! Please open an issue or pull request.
 
 ### v1.1.0
 - Security protections (prompt injection, sensitive data warnings)
-- Rate limiting and monthly spending cap
 - HUD notifications for correction status
 - Output validation
 

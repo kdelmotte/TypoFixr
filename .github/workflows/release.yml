@@ -1,0 +1,238 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: macos-15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run tests
+        run: |
+          xcodebuild test \
+            -project TypoFixr.xcodeproj \
+            -scheme TypoFixr \
+            -destination "platform=macOS,arch=arm64" \
+            -derivedDataPath "$RUNNER_TEMP/DerivedDataTests" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO
+
+      - name: Import signing certificate
+        env:
+          P12_BASE64: ${{ secrets.DEVELOPER_ID_APPLICATION_P12_BASE64 }}
+          P12_PASSWORD: ${{ secrets.P12_PASSWORD }}
+        run: |
+          CERT_PATH="$RUNNER_TEMP/certificate.p12"
+          KEYCHAIN_PATH="$RUNNER_TEMP/signing.keychain-db"
+          KEYCHAIN_PASSWORD="$(openssl rand -base64 32)"
+
+          echo -n "$P12_BASE64" | base64 --decode -o "$CERT_PATH"
+
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security import "$CERT_PATH" -P "$P12_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
+          security set-key-partition-list -S apple-tool:,apple: -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security list-keychains -d user -s "$KEYCHAIN_PATH" login.keychain-db
+
+      - name: Build signed release app
+        run: |
+          xcodebuild build \
+            -project TypoFixr.xcodeproj \
+            -scheme TypoFixr \
+            -configuration Release \
+            -derivedDataPath "$RUNNER_TEMP/DerivedDataRelease" \
+            CODE_SIGN_STYLE=Manual \
+            CODE_SIGN_IDENTITY="Developer ID Application" \
+            DEVELOPMENT_TEAM="${{ secrets.APPLE_TEAM_ID }}" \
+            CODE_SIGN_INJECT_BASE_ENTITLEMENTS=NO \
+            ENABLE_HARDENED_RUNTIME=YES \
+            OTHER_CODE_SIGN_FLAGS=--timestamp
+
+      - name: Verify code signature
+        run: |
+          APP_PATH="$RUNNER_TEMP/DerivedDataRelease/Build/Products/Release/TypoFixr.app"
+          codesign --verify --deep --strict "$APP_PATH"
+          codesign -d --verbose=2 "$APP_PATH" 2>&1 | grep -q "flags=0x10000(runtime)"
+
+      - name: Notarize app
+        timeout-minutes: 50
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          APP_PATH="$RUNNER_TEMP/DerivedDataRelease/Build/Products/Release/TypoFixr.app"
+          ZIP_PATH="$RUNNER_TEMP/TypoFixr-notarize.zip"
+
+          ditto -c -k --keepParent "$APP_PATH" "$ZIP_PATH"
+
+          SUBMIT_OUT=$(xcrun notarytool submit "$ZIP_PATH" \
+            --apple-id "$APPLE_ID" \
+            --password "$APPLE_ID_PASSWORD" \
+            --team-id "$APPLE_TEAM_ID" \
+            --wait --timeout 45m 2>&1) || true
+          echo "$SUBMIT_OUT"
+
+          SUBMISSION_ID=$(echo "$SUBMIT_OUT" | grep '  id:' | head -1 | awk '{print $2}')
+
+          if echo "$SUBMIT_OUT" | grep -q "status: Accepted"; then
+            echo "App notarization accepted!"
+          else
+            echo "App notarization failed. Fetching log..."
+            if [ -n "$SUBMISSION_ID" ]; then
+              xcrun notarytool log "$SUBMISSION_ID" \
+                --apple-id "$APPLE_ID" \
+                --password "$APPLE_ID_PASSWORD" \
+                --team-id "$APPLE_TEAM_ID" \
+                /dev/stdout || true
+            fi
+            exit 1
+          fi
+
+      - name: Staple app notarization ticket
+        run: |
+          APP_PATH="$RUNNER_TEMP/DerivedDataRelease/Build/Products/Release/TypoFixr.app"
+          for i in 1 2 3; do
+            if xcrun stapler staple "$APP_PATH"; then
+              exit 0
+            fi
+            echo "Staple attempt $i failed, waiting 15s for ticket propagation..."
+            sleep 15
+          done
+          echo "Stapling failed after 3 attempts"
+          exit 1
+
+      - name: Install DMG packaging dependencies
+        run: |
+          DMG_VENV="$RUNNER_TEMP/dmgbuild-venv"
+          python3 -m venv "$DMG_VENV"
+          "$DMG_VENV/bin/python" -m pip install --quiet --upgrade pip
+          "$DMG_VENV/bin/python" -m pip install --quiet dmgbuild pillow
+          echo "DMG_PYTHON=$DMG_VENV/bin/python" >> "$GITHUB_ENV"
+
+      - name: Package DMG for release
+        run: |
+          APP_PATH="$RUNNER_TEMP/DerivedDataRelease/Build/Products/Release/TypoFixr.app"
+          RELEASE_DMG="$RUNNER_TEMP/TypoFixr.dmg"
+          DMG_BACKGROUND_PATH="$RUNNER_TEMP/dmg-background.png"
+          DMG_PYTHON="$DMG_PYTHON"
+
+          DMG_BACKGROUND_PATH="$DMG_BACKGROUND_PATH" "$DMG_PYTHON" - <<'PY'
+          import os
+          from PIL import Image, ImageDraw, ImageFont
+
+          width, height = 720, 460
+          image = Image.new("RGB", (width, height), "#0d1b2a")
+          draw = ImageDraw.Draw(image)
+
+          draw.rectangle((width // 2, 0, width, height), fill="#8ee3ef")
+
+          arrow = [
+              (324, 184), (386, 184), (386, 146),
+              (446, 230), (386, 314), (386, 276), (324, 276),
+          ]
+          draw.polygon(arrow, fill="#134074")
+
+          draw.ellipse((70, 120, 290, 340), fill="#dff4ff")
+          draw.ellipse((430, 120, 650, 340), fill="#dff4ff")
+
+          def load_font(size: int):
+              candidates = [
+                  "/System/Library/Fonts/Supplemental/Helvetica.ttc",
+                  "/System/Library/Fonts/Supplemental/Arial.ttf",
+                  "/Library/Fonts/Arial.ttf",
+              ]
+              for path in candidates:
+                  if os.path.exists(path):
+                      try:
+                          return ImageFont.truetype(path, size=size)
+                      except OSError:
+                          continue
+              return ImageFont.load_default()
+
+          title_font = load_font(36)
+          caption_font = load_font(22)
+          label_font = load_font(26)
+
+          draw.text((112, 24), "Install TypoFixr", font=title_font, fill="#f8fafc")
+          draw.text((64, 72), "Drag TypoFixr.app to Applications", font=caption_font, fill="#e2e8f0")
+
+          draw.text((94, 370), "TypoFixr.app", font=label_font, fill="#e2e8f0")
+          draw.text((446, 370), "Applications", font=label_font, fill="#0f172a")
+
+          image.save(os.environ["DMG_BACKGROUND_PATH"], format="PNG")
+          PY
+
+          APP_PATH="$APP_PATH" \
+          DMG_BACKGROUND_PATH="$DMG_BACKGROUND_PATH" \
+          "$DMG_PYTHON" -m dmgbuild -s .github/dmgbuild-settings.py "TypoFixr" "$RELEASE_DMG"
+
+          codesign --force --timestamp --sign "Developer ID Application" "$RELEASE_DMG"
+          codesign --verify --verbose "$RELEASE_DMG"
+
+          echo "RELEASE_DMG=$RELEASE_DMG" >> "$GITHUB_ENV"
+
+      - name: Notarize DMG
+        timeout-minutes: 50
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          RELEASE_DMG="$RUNNER_TEMP/TypoFixr.dmg"
+
+          SUBMIT_OUT=$(xcrun notarytool submit "$RELEASE_DMG" \
+            --apple-id "$APPLE_ID" \
+            --password "$APPLE_ID_PASSWORD" \
+            --team-id "$APPLE_TEAM_ID" \
+            --wait --timeout 45m 2>&1) || true
+          echo "$SUBMIT_OUT"
+
+          SUBMISSION_ID=$(echo "$SUBMIT_OUT" | grep '  id:' | head -1 | awk '{print $2}')
+
+          if echo "$SUBMIT_OUT" | grep -q "status: Accepted"; then
+            echo "DMG notarization accepted!"
+          else
+            echo "DMG notarization failed. Fetching log..."
+            if [ -n "$SUBMISSION_ID" ]; then
+              xcrun notarytool log "$SUBMISSION_ID" \
+                --apple-id "$APPLE_ID" \
+                --password "$APPLE_ID_PASSWORD" \
+                --team-id "$APPLE_TEAM_ID" \
+                /dev/stdout || true
+            fi
+            exit 1
+          fi
+
+      - name: Staple DMG notarization ticket
+        run: |
+          RELEASE_DMG="$RUNNER_TEMP/TypoFixr.dmg"
+          for i in 1 2 3; do
+            if xcrun stapler staple "$RELEASE_DMG"; then
+              exit 0
+            fi
+            echo "DMG staple attempt $i failed, waiting 15s for ticket propagation..."
+            sleep 15
+          done
+          echo "DMG stapling failed after 3 attempts"
+          exit 1
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ env.RELEASE_DMG }}
+          generate_release_notes: true
+
+      - name: Clean up keychain
+        if: always()
+        run: |
+          security delete-keychain "$RUNNER_TEMP/signing.keychain-db" || true

@@ -35,6 +35,8 @@ struct SettingsView: View {
                     Label("About", systemImage: "info.circle")
                 }
         }
+        .padding(.top, 12)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
 
@@ -328,17 +330,19 @@ struct SecurityPrivacySettingsView: View {
     
     var body: some View {
         Form {
-            // Privacy Section
             Section {
-                HStack {
-                    Button("Clear All History") {
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("TypoFixr stores correction history locally on this Mac so recent fixes can appear in the menu bar and be reverted when needed.")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+
+                    Button("Clear Local History…") {
                         showClearHistoryConfirmation = true
                     }
-                    .foregroundColor(.red)
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
 
-                    Spacer()
-
-                    Text("\(appState.correctionHistory.count) corrections in memory")
+                    Text("Clearing history removes saved corrections and local usage records from this Mac.")
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
@@ -346,7 +350,6 @@ struct SecurityPrivacySettingsView: View {
                 Label("Privacy", systemImage: "eye.slash")
             }
             
-            // Security Section
             Section {
                 Toggle("Security Warnings", isOn: $appState.securityWarningsEnabled)
                     .help("Show warnings when text contains potential prompt injections or sensitive data")
@@ -358,44 +361,6 @@ struct SecurityPrivacySettingsView: View {
                 Label("Security", systemImage: "shield")
             }
             
-            // Rate Limiting Section
-            Section {
-                Stepper("Max \(appState.correctionsPerMinuteLimit) corrections/minute",
-                        value: $appState.correctionsPerMinuteLimit,
-                        in: 5...30)
-                
-                Stepper("Max \(appState.correctionsPerHourLimit) corrections/hour",
-                        value: $appState.correctionsPerHourLimit,
-                        in: 20...500)
-            } header: {
-                Label("Rate Limiting", systemImage: "gauge.with.dots.needle.50percent")
-            }
-            
-            // Spending Cap Section
-            Section {
-                Toggle("Enable Spending Cap", isOn: $appState.spendingCapEnabled)
-                
-                if appState.spendingCapEnabled {
-                    Stepper("Limit: \(formatTokens(appState.monthlyTokenLimit)) tokens/month",
-                            value: $appState.monthlyTokenLimit,
-                            in: 10000...1000000,
-                            step: 10000)
-                    
-                    let stats = appState.getCurrentUsageStats()
-                    HStack {
-                        Text("Current usage:")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                        Text("\(formatTokens(stats.monthlyTokens)) tokens this month")
-                            .font(.caption)
-                            .fontWeight(.medium)
-                    }
-                }
-            } header: {
-                Label("Cost Control", systemImage: "dollarsign.circle")
-            }
-            
-            // Data Notice
             Section {
                 VStack(alignment: .leading, spacing: 8) {
                     HStack(spacing: 8) {
@@ -414,47 +379,41 @@ struct SecurityPrivacySettingsView: View {
         }
         .formStyle(.grouped)
         .padding()
-        .alert("Clear History", isPresented: $showClearHistoryConfirmation) {
+        .alert("Clear Local History", isPresented: $showClearHistoryConfirmation) {
             Button("Cancel", role: .cancel) { }
             Button("Clear", role: .destructive) {
                 appState.clearHistory()
             }
         } message: {
-            Text("This will permanently remove all correction history.")
+            Text("This will permanently remove the locally stored correction history and usage records on this Mac.")
         }
-    }
-    
-    private func formatTokens(_ count: Int) -> String {
-        if count >= 1000000 {
-            return String(format: "%.1fM", Double(count) / 1_000_000)
-        } else if count >= 1000 {
-            return String(format: "%.0fK", Double(count) / 1000)
-        }
-        return "\(count)"
     }
 }
 
 // MARK: - About View
 struct AboutView: View {
     var body: some View {
-        VStack(spacing: 16) {
-            Image(systemName: "keyboard")
-                .font(.system(size: 48))
-                .foregroundColor(.accentColor)
+        VStack(spacing: 18) {
+            TypoFixrMark(size: 72)
             
             Text("TypoFixr")
-                .font(.title)
-                .fontWeight(.bold)
+                .font(.system(size: 28, weight: .semibold, design: .rounded))
             
             Text("Version \(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.0.0")")
                 .font(.caption)
                 .foregroundColor(.secondary)
             
-            Text("Fix typos and grammar mistakes instantly while preserving your writing style.")
+            Text("A focused menu bar utility for fixing selected text with your own Groq API key.")
                 .font(.body)
                 .multilineTextAlignment(.center)
                 .foregroundColor(.secondary)
                 .padding(.horizontal)
+
+            HStack(spacing: 10) {
+                AboutBadge(label: "Menu bar")
+                AboutBadge(label: "BYO Groq key")
+                AboutBadge(label: "Undo friendly")
+            }
             
             Spacer()
             
@@ -470,5 +429,18 @@ struct AboutView: View {
         }
         .padding()
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+}
+
+struct AboutBadge: View {
+    let label: String
+
+    var body: some View {
+        Text(label)
+            .font(.caption.weight(.medium))
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background(TypoFixrBrandPalette.blue.opacity(0.12))
+            .clipShape(Capsule())
     }
 }

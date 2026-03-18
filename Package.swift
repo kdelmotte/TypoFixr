@@ -21,7 +21,7 @@ let package = Package(
                 "HotKey"
             ],
             path: "Sources/TypoFixr",
-            exclude: ["Info.plist"]
+            exclude: ["Assets.xcassets", "Info.plist"]
         ),
         .testTarget(
             name: "TypoFixrTests",

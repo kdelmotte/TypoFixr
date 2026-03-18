@@ -114,12 +114,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
 
         if let button = statusItem.button {
-            if let image = NSImage(systemSymbolName: "keyboard", accessibilityDescription: "TypoFixr") {
-                button.image = image
-            } else {
-                // Fallback to text if SF Symbol doesn't work
-                button.title = "⌨️"
-            }
+            button.image = TypoFixrBranding.menuBarTemplateImage()
             button.action = #selector(togglePopover)
             button.target = self
         }
@@ -168,12 +163,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             button.image = NSImage(systemSymbolName: "xmark.circle.fill", accessibilityDescription: "Error")?.withSymbolConfiguration(config)
         case .noPermission:
             button.image = NSImage(systemSymbolName: "keyboard.badge.exclamationmark", accessibilityDescription: "Permission Required")?.withSymbolConfiguration(config)
-        case .rateLimited:
-            button.image = NSImage(systemSymbolName: "hand.raised.fill", accessibilityDescription: "Rate Limited")?.withSymbolConfiguration(config)
         case .offline:
             button.image = NSImage(systemSymbolName: "wifi.slash", accessibilityDescription: "Offline")?.withSymbolConfiguration(config)
         case .normal:
-            button.image = NSImage(systemSymbolName: "keyboard", accessibilityDescription: "TypoFixr")?.withSymbolConfiguration(config)
+            button.image = TypoFixrBranding.menuBarTemplateImage(pointSize: 16)
         }
     }
     
@@ -210,7 +203,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             window.identifier = NSUserInterfaceItemIdentifier("settings")
             window.title = "TypoFixr Settings"
             window.styleMask = [.titled, .closable]
-            window.setContentSize(NSSize(width: 450, height: 380))
+            window.setContentSize(NSSize(width: 520, height: 440))
             window.center()
 
             settingsWindow = window
@@ -239,7 +232,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         window.identifier = NSUserInterfaceItemIdentifier("onboarding")
         window.title = "Welcome to TypoFixr"
         window.styleMask = [.titled, .closable]
-        window.setContentSize(NSSize(width: 500, height: 500))
+        window.setContentSize(NSSize(width: 640, height: 560))
+        window.minSize = NSSize(width: 640, height: 560)
+        window.maxSize = NSSize(width: 640, height: 560)
         window.center()
         window.isReleasedWhenClosed = false
 

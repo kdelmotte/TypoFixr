@@ -38,14 +38,6 @@ class TextCorrectionService {
             return
         }
 
-        // Check rate limit
-        guard appState.checkRateLimit() else {
-            appState.lastError = "Rate limit exceeded"
-            appState.setIconState(.rateLimited, autoReset: true)
-            HUDService.shared.show(title: "Rate Limited", subtitle: "Please wait before trying again", isSuccess: false)
-            return
-        }
-
         // Show processing state
         appState.setIconState(.processing)
 

@@ -31,15 +31,13 @@ struct MenuBarView: View {
     // MARK: - Header
     private var headerSection: some View {
         HStack {
-            Image(systemName: "keyboard")
-                .font(.title2)
-                .foregroundColor(.accentColor)
+            TypoFixrMark(size: 34)
             
             VStack(alignment: .leading, spacing: 2) {
                 Text("TypoFixr")
                     .font(.headline)
                 
-                Text("Press \(appState.keyboardShortcut.displayString) to fix text")
+                Text("Press \(appState.keyboardShortcut.displayString) to clean up selected text")
                     .font(.caption)
                     .foregroundColor(.secondary)
             }
@@ -285,4 +283,3 @@ struct StatBadge: View {
         .cornerRadius(8)
     }
 }
-

@@ -3,419 +3,469 @@ import SwiftUI
 struct OnboardingView: View {
     @EnvironmentObject var appState: AppState
     @Environment(\.dismiss) var dismiss
-    @State private var currentPage = 0
-    
+
+    @State private var currentStep: OnboardingStep = .welcome
+    @State private var showAPIKey = false
+    @State private var permissionTimer: Timer?
+    @State private var isPollingPermission = false
+
+    private var gateState: OnboardingGateState {
+        OnboardingGateState(
+            hasAccessibilityPermission: appState.hasAccessibilityPermission,
+            apiKeyValidationState: GroqAPIKeyValidationState(apiKey: appState.groqApiKey)
+        )
+    }
+
+    private var apiKeyValidationState: GroqAPIKeyValidationState {
+        gateState.apiKeyValidationState
+    }
+
     var body: some View {
         VStack(spacing: 0) {
-            // Content
-            TabView(selection: $currentPage) {
-                WelcomePage()
-                    .tag(0)
+            header
 
-                PermissionPage(appState: appState)
-                    .tag(1)
+            Divider()
 
-                APIKeyPage(appState: appState)
-                    .tag(2)
+            content
 
-                ReadyPage()
-                    .environmentObject(appState)
-                    .tag(3)
-            }
-            .tabViewStyle(.automatic)
-            .frame(height: 380)
-            
-            // Navigation
-            HStack {
-                if currentPage > 0 {
-                    Button("Back") {
-                        withAnimation {
-                            currentPage -= 1
-                        }
-                    }
-                    .buttonStyle(.bordered)
-                }
-                
-                Spacer()
-                
-                // Page indicators
-                HStack(spacing: 8) {
-                    ForEach(0..<4) { index in
-                        Circle()
-                            .fill(index == currentPage ? Color.accentColor : Color.gray.opacity(0.3))
-                            .frame(width: 8, height: 8)
-                    }
-                }
-                
-                Spacer()
-                
-                if currentPage < 3 {
-                    Button("Next") {
-                        withAnimation {
-                            currentPage += 1
-                        }
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .disabled(!canProceed)
-                } else {
-                    Button("Get Started") {
-                        appState.hasCompletedOnboarding = true
-                        dismiss()
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .disabled(!canFinish)
-                }
-            }
-            .padding()
+            Divider()
+
+            footer
         }
-    }
-    
-    private var canProceed: Bool {
-        switch currentPage {
-        case 1:
-            return appState.hasAccessibilityPermission
-        case 2:
-            return !appState.groqApiKey.isEmpty
-        default:
-            return true
-        }
-    }
-    
-    private var canFinish: Bool {
-        return appState.hasAccessibilityPermission && !appState.groqApiKey.isEmpty
-    }
-}
-
-// MARK: - Welcome Page
-struct WelcomePage: View {
-    var body: some View {
-        VStack(spacing: 24) {
-            Spacer()
-            
-            Image(systemName: "keyboard")
-                .font(.system(size: 64))
-                .foregroundColor(.accentColor)
-            
-            Text("Welcome to TypoFixr")
-                .font(.largeTitle)
-                .fontWeight(.bold)
-            
-            Text("Fix typos and grammar mistakes instantly\nwhile preserving your unique writing style.")
-                .font(.title3)
-                .multilineTextAlignment(.center)
-                .foregroundColor(.secondary)
-            
-            Spacer()
-            
-            // Feature highlights
-            VStack(alignment: .leading, spacing: 12) {
-                FeatureRow(icon: "bolt.fill", text: "Fix text instantly with a keyboard shortcut")
-                FeatureRow(icon: "person.fill", text: "Preserves your tone and style")
-                FeatureRow(icon: "arrow.uturn.backward", text: "Easy undo if you prefer the original")
-            }
-            .padding(.horizontal, 40)
-            
-            Spacer()
-        }
-        .padding()
-    }
-}
-
-// MARK: - Permission Page
-struct PermissionPage: View {
-    @ObservedObject var appState: AppState
-    @State private var isChecking = false
-    @State private var permissionTimer: Timer?
-
-    var body: some View {
-        VStack(spacing: 24) {
-            Spacer()
-            
-            Image(systemName: "hand.raised.fill")
-                .font(.system(size: 48))
-                .foregroundColor(.orange)
-            
-            Text("Accessibility Permission")
-                .font(.title)
-                .fontWeight(.bold)
-            
-            VStack(alignment: .leading, spacing: 16) {
-                Text("TypoFixr needs Accessibility permission to:")
-                    .fontWeight(.medium)
-                
-                VStack(alignment: .leading, spacing: 8) {
-                    BulletPoint(text: "Read text from the focused text field when you trigger a fix")
-                    BulletPoint(text: "Replace the text with the corrected version")
-                }
-                .padding(.leading, 8)
-            }
-            .padding(.horizontal, 40)
-            
-            // Privacy assurance
-            VStack(alignment: .leading, spacing: 8) {
-                HStack {
-                    Image(systemName: "lock.shield.fill")
-                        .foregroundColor(.green)
-                    Text("Privacy Commitment")
-                        .fontWeight(.medium)
-                }
-                
-                Text("We only access text when you press the keyboard shortcut. Text is sent to Groq-hosted OpenAI GPT-OSS 20B for correction and immediately discarded. We do not store, log, or retain any of your text.")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-            }
-            .padding()
-            .background(Color.green.opacity(0.1))
-            .cornerRadius(12)
-            .padding(.horizontal, 40)
-            
-            Spacer()
-            
-            // Permission status and button
-            VStack(spacing: 12) {
-                if appState.hasAccessibilityPermission {
-                    HStack {
-                        Image(systemName: "checkmark.circle.fill")
-                            .foregroundColor(.green)
-                        Text("Permission Granted")
-                            .foregroundColor(.green)
-                    }
-                    .font(.headline)
-                } else {
-                    Button(action: requestPermission) {
-                        HStack {
-                            Image(systemName: "gear")
-                            Text("Open System Preferences")
-                        }
-                        .frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.large)
-                    .padding(.horizontal, 40)
-                    
-                    Text("Click the button above, then enable TypoFixr in the list")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-            }
-            
-            Spacer()
-        }
-        .padding()
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(TypoFixrBrandPalette.secondaryCardFill)
         .onAppear {
             startPermissionPolling()
         }
         .onDisappear {
-            permissionTimer?.invalidate()
-            permissionTimer = nil
+            stopPermissionPolling()
         }
     }
 
-    private func requestPermission() {
-        if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") {
-            NSWorkspace.shared.open(url)
+    private var header: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            HStack(alignment: .center, spacing: 16) {
+                TypoFixrMark(size: 54)
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(currentStep.progressLabel)
+                        .font(.caption.weight(.semibold))
+                        .foregroundColor(.secondary)
+
+                    Text(currentStep.title)
+                        .font(.system(size: 28, weight: .semibold, design: .rounded))
+
+                    Text(currentStep.subtitle)
+                        .font(.callout)
+                        .foregroundColor(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                Spacer(minLength: 0)
+            }
+
+            StepProgressIndicator(currentStep: currentStep)
         }
-        startPermissionPolling()
+        .padding(.horizontal, 28)
+        .padding(.vertical, 24)
     }
-    
-    private func startPermissionPolling() {
-        guard !isChecking else { return }
-        isChecking = true
 
-        permissionTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [self] timer in
-            let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: false]
-            let trusted = AXIsProcessTrustedWithOptions(options as CFDictionary)
+    @ViewBuilder
+    private var content: some View {
+        switch currentStep {
+        case .welcome:
+            welcomeStep
+        case .accessibility:
+            accessibilityStep
+        case .apiKey:
+            apiKeyStep
+        }
+    }
 
-            if trusted {
-                timer.invalidate()
-                permissionTimer = nil
-                isChecking = false
-                DispatchQueue.main.async {
-                    appState.hasAccessibilityPermission = true
+    private var welcomeStep: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            OnboardingCard {
+                VStack(alignment: .leading, spacing: 16) {
+                    Text("How it works")
+                        .font(.headline)
+
+                    Text("TypoFixr waits in the menu bar until you trigger it, fixes the selected text, and pastes the result back where you were typing.")
+                        .font(.callout)
+                        .foregroundColor(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    Label("Current shortcut: \(appState.keyboardShortcut.displayString)", systemImage: "command.square")
+                        .font(.callout.weight(.medium))
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 8)
+                        .background(TypoFixrBrandPalette.blue.opacity(0.12))
+                        .clipShape(Capsule())
+
+                    OnboardingBulletRow(systemImage: "bolt.fill", text: "Runs from your current text field without disrupting your typing flow.")
+                    OnboardingBulletRow(systemImage: "text.quote", text: "Corrects obvious mistakes while keeping tone, structure, and list formatting intact.")
+                    OnboardingBulletRow(systemImage: "arrow.uturn.backward.circle.fill", text: "Standard undo works right away if you want the original text back.")
                 }
             }
         }
+        .padding(28)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
     }
-}
 
-// MARK: - API Key Page
-struct APIKeyPage: View {
-    @ObservedObject var appState: AppState
-    @State private var showAPIKey = false
-    
-    var body: some View {
-        VStack(spacing: 24) {
-            Spacer()
-            
-            Image(systemName: "key.fill")
-                .font(.system(size: 48))
-                .foregroundColor(.accentColor)
-            
-            Text("Groq API Key")
-                .font(.title)
-                .fontWeight(.bold)
-            
-            Text("TypoFixr uses Groq-hosted OpenAI GPT-OSS 20B for ultra-fast text correction.\nYou'll need a free Groq API key to continue.")
-                .font(.body)
-                .multilineTextAlignment(.center)
-                .foregroundColor(.secondary)
-            
-            VStack(alignment: .leading, spacing: 8) {
-                Text("API Key")
+    private var accessibilityStep: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            OnboardingCard {
+                Text("Current status")
+                    .font(.headline)
+
+                HStack(alignment: .center) {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(appState.hasAccessibilityPermission ? "Granted" : "Not granted yet")
+                            .font(.title3.weight(.semibold))
+
+                        Text(appState.hasAccessibilityPermission
+                             ? "You’re ready to move on."
+                             : "Open macOS Accessibility settings, enable TypoFixr, then come back here. We’ll detect the change automatically.")
+                            .font(.callout)
+                            .foregroundColor(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+
+                    Spacer()
+
+                    PermissionStatusBadge(isGranted: appState.hasAccessibilityPermission)
+                }
+            }
+
+            HStack(alignment: .top, spacing: 16) {
+                OnboardingCard {
+                    Text("What this unlocks")
+                        .font(.headline)
+
+                    OnboardingBulletRow(systemImage: "text.cursor", text: "Reads the text you selected when you trigger a fix.")
+                    OnboardingBulletRow(systemImage: "arrow.left.arrow.right", text: "Replaces that same text with the corrected version.")
+                    OnboardingBulletRow(systemImage: "hand.tap", text: "Only runs when you press your shortcut. Nothing is monitored in the background.")
+                }
+
+                OnboardingCard {
+                    Text("How to grant access")
+                        .font(.headline)
+
+                    OnboardingStepRow(number: "1", text: "Click the button below to open the Accessibility panel.")
+                    OnboardingStepRow(number: "2", text: "Find TypoFixr in the list and turn it on.")
+                    OnboardingStepRow(number: "3", text: "Return here. The button will change to Continue once macOS reports permission.")
+                }
+            }
+
+            if !appState.hasAccessibilityPermission {
+                Label("Tip: if TypoFixr already appears in the list, toggling it off and on again usually resolves stale permission state.", systemImage: "lightbulb")
                     .font(.caption)
                     .foregroundColor(.secondary)
-                
-                HStack {
-                    if showAPIKey {
-                        TextField("gsk_...", text: $appState.groqApiKey)
-                            .textFieldStyle(.roundedBorder)
-                    } else {
-                        SecureField("gsk_...", text: $appState.groqApiKey)
-                            .textFieldStyle(.roundedBorder)
+            }
+        }
+        .padding(28)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+    }
+
+    private var apiKeyStep: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            OnboardingCard {
+                Text("Paste your Groq API key")
+                    .font(.headline)
+
+                Text("TypoFixr sends correction requests directly to Groq with your key. We do not proxy traffic or create an account for this version.")
+                    .font(.callout)
+                    .foregroundColor(.secondary)
+
+                HStack(spacing: 10) {
+                    Group {
+                        if showAPIKey {
+                            TextField("gsk_...", text: $appState.groqApiKey)
+                        } else {
+                            SecureField("gsk_...", text: $appState.groqApiKey)
+                        }
                     }
-                    
+                    .textFieldStyle(.roundedBorder)
+                    .font(.system(.body, design: .monospaced))
+
                     Button(action: { showAPIKey.toggle() }) {
                         Image(systemName: showAPIKey ? "eye.slash" : "eye")
                     }
                     .buttonStyle(.borderless)
+                    .help(showAPIKey ? "Hide API key" : "Reveal API key")
                 }
-                
-                if appState.hasValidApiKey {
-                    HStack {
-                        Image(systemName: "checkmark.circle.fill")
-                            .foregroundColor(.green)
-                        Text("API key looks valid")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
+
+                InlineValidationRow(
+                    systemImage: apiKeyValidationState.iconSystemName,
+                    tint: apiKeyValidationTint,
+                    message: apiKeyValidationState.message
+                )
+
+                if let groqURL = URL(string: "https://console.groq.com/keys") {
+                    Link(destination: groqURL) {
+                        Label("Open Groq key dashboard", systemImage: "arrow.up.right.square")
+                            .font(.callout.weight(.medium))
                     }
                 }
             }
-            .padding(.horizontal, 60)
-            
-            if let groqURL = URL(string: "https://console.groq.com/keys") {
-                Link(destination: groqURL) {
-                    HStack {
-                        Image(systemName: "arrow.up.right.square")
-                        Text("Get your free API key from Groq")
-                    }
-                }
-                .font(.callout)
-            }
-            
-            // Cost estimate
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Estimated Cost")
-                    .font(.caption)
-                    .fontWeight(.medium)
-                Text("Essentially free (~$0.01/month for typical usage)")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-            }
-            .padding()
-            .background(Color.gray.opacity(0.1))
-            .cornerRadius(8)
-            
-            Spacer()
-        }
-        .padding()
-    }
-}
 
-// MARK: - Ready Page
-struct ReadyPage: View {
-    @EnvironmentObject var appState: AppState
-
-    var body: some View {
-        VStack(spacing: 24) {
-            Spacer()
-
-            Image(systemName: "checkmark.circle.fill")
-                .font(.system(size: 64))
-                .foregroundColor(.green)
-
-            Text("You're All Set!")
-                .font(.largeTitle)
-                .fontWeight(.bold)
-
-            Text("TypoFixr is ready to help you fix typos.")
-                .font(.title3)
-                .foregroundColor(.secondary)
-
-            Spacer()
-
-            // Quick guide
-            VStack(alignment: .leading, spacing: 16) {
-                Text("Quick Guide")
+            OnboardingCard {
+                Text("Privacy")
                     .font(.headline)
 
-                HowToRow(number: "1", text: "Type text in any app")
-                HowToRow(number: "2", text: "Press \(appState.keyboardShortcut.displayString) to fix")
-                HowToRow(number: "3", text: "Your text is instantly fixed!")
-
-                Divider()
-
-                HStack {
-                    Image(systemName: "arrow.uturn.backward")
-                        .foregroundColor(.accentColor)
-                    Text("Press \u{2318}Z to undo")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
+                OnboardingBulletRow(systemImage: "key.fill", text: "Your API key is stored locally in macOS Keychain on this Mac.")
+                OnboardingBulletRow(systemImage: "lock.shield", text: "TypoFixr only reads text when you trigger a correction.")
+                OnboardingBulletRow(systemImage: "network", text: "Requests go straight to Groq from your device using your account.")
             }
-            .padding()
-            .background(Color.gray.opacity(0.1))
-            .cornerRadius(12)
-            .padding(.horizontal, 40)
+        }
+        .padding(28)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+    }
+
+    private var footer: some View {
+        HStack(spacing: 16) {
+            if let previousStep = currentStep.previous {
+                Button("Back") {
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        currentStep = previousStep
+                    }
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.large)
+            } else {
+                Color.clear
+                    .frame(width: 1, height: 1)
+            }
 
             Spacer()
+
+            Text(footerHint)
+                .font(.caption)
+                .foregroundColor(.secondary)
+
+            Spacer()
+
+            Button(primaryButtonTitle, action: handlePrimaryAction)
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
+                .disabled(isPrimaryButtonDisabled)
         }
-        .padding()
+        .padding(.horizontal, 28)
+        .padding(.vertical, 18)
+    }
+
+    private var primaryButtonTitle: String {
+        switch currentStep {
+        case .welcome:
+            return "Continue"
+        case .accessibility:
+            return appState.hasAccessibilityPermission ? "Continue" : "Open Accessibility Settings"
+        case .apiKey:
+            return "Finish Setup"
+        }
+    }
+
+    private var isPrimaryButtonDisabled: Bool {
+        switch currentStep {
+        case .welcome:
+            return false
+        case .accessibility:
+            return false
+        case .apiKey:
+            return !gateState.canContinue(from: .apiKey)
+        }
+    }
+
+    private var footerHint: String {
+        switch currentStep {
+        case .welcome:
+            return "Setup takes about a minute."
+        case .accessibility:
+            return appState.hasAccessibilityPermission
+                ? "Accessibility is ready."
+                : "We’ll keep checking while this window stays open."
+        case .apiKey:
+            return "Your key stays local in Keychain."
+        }
+    }
+
+    private var apiKeyValidationTint: Color {
+        switch apiKeyValidationState {
+        case .empty:
+            return .secondary
+        case .invalidFormat:
+            return .orange
+        case .valid:
+            return .green
+        }
+    }
+
+    private func handlePrimaryAction() {
+        switch currentStep {
+        case .welcome:
+            advance(to: .accessibility)
+        case .accessibility:
+            if appState.hasAccessibilityPermission {
+                advance(to: .apiKey)
+            } else {
+                AppHelpers.openAccessibilitySettings()
+                startPermissionPolling()
+            }
+        case .apiKey:
+            guard gateState.canContinue(from: .apiKey) else { return }
+            appState.hasCompletedOnboarding = true
+            dismiss()
+        }
+    }
+
+    private func advance(to step: OnboardingStep) {
+        withAnimation(.easeInOut(duration: 0.2)) {
+            currentStep = step
+        }
+    }
+
+    private func startPermissionPolling() {
+        guard !isPollingPermission else { return }
+        isPollingPermission = true
+
+        permissionTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { timer in
+            let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: false]
+            let trusted = AXIsProcessTrustedWithOptions(options as CFDictionary)
+
+            DispatchQueue.main.async {
+                appState.hasAccessibilityPermission = trusted
+            }
+
+            if trusted {
+                timer.invalidate()
+                permissionTimer = nil
+                isPollingPermission = false
+            }
+        }
+    }
+
+    private func stopPermissionPolling() {
+        permissionTimer?.invalidate()
+        permissionTimer = nil
+        isPollingPermission = false
     }
 }
 
-// MARK: - Helper Views
-struct FeatureRow: View {
-    let icon: String
-    let text: String
-    
+struct StepProgressIndicator: View {
+    let currentStep: OnboardingStep
+
     var body: some View {
         HStack(spacing: 12) {
-            Image(systemName: icon)
-                .foregroundColor(.accentColor)
-                .frame(width: 24)
-            Text(text)
-                .font(.body)
+            ForEach(OnboardingStep.allCases) { step in
+                VStack(alignment: .leading, spacing: 8) {
+                    Capsule()
+                        .fill(fillColor(for: step))
+                        .frame(height: 8)
+                        .overlay(
+                            Capsule()
+                                .stroke(TypoFixrBrandPalette.softBorder, lineWidth: step == currentStep ? 0 : 1)
+                        )
+
+                    Text(shortTitle(for: step))
+                        .font(.caption)
+                        .foregroundColor(step == currentStep ? .primary : .secondary)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+    }
+
+    private func fillColor(for step: OnboardingStep) -> Color {
+        if step.rawValue < currentStep.rawValue {
+            return TypoFixrBrandPalette.green
+        }
+        if step == currentStep {
+            return TypoFixrBrandPalette.blue
+        }
+        return Color.secondary.opacity(0.18)
+    }
+
+    private func shortTitle(for step: OnboardingStep) -> String {
+        switch step {
+        case .welcome:
+            return "Welcome"
+        case .accessibility:
+            return "Accessibility"
+        case .apiKey:
+            return "Groq Key"
         }
     }
 }
 
-struct BulletPoint: View {
+struct OnboardingBulletRow: View {
+    let systemImage: String
     let text: String
-    
+
     var body: some View {
-        HStack(alignment: .top, spacing: 8) {
-            Text("•")
-                .foregroundColor(.secondary)
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: systemImage)
+                .foregroundColor(TypoFixrBrandPalette.blue)
+                .frame(width: 18)
+
             Text(text)
                 .font(.callout)
                 .foregroundColor(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
         }
     }
 }
 
-struct HowToRow: View {
+struct OnboardingStepRow: View {
     let number: String
     let text: String
-    
+
     var body: some View {
-        HStack(spacing: 12) {
+        HStack(alignment: .top, spacing: 12) {
             Text(number)
-                .font(.headline)
+                .font(.caption.weight(.bold))
                 .foregroundColor(.white)
-                .frame(width: 28, height: 28)
-                .background(Color.accentColor)
+                .frame(width: 24, height: 24)
+                .background(TypoFixrBrandPalette.blue)
                 .clipShape(Circle())
+
             Text(text)
+                .font(.callout)
+                .foregroundColor(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+}
+
+struct PermissionStatusBadge: View {
+    let isGranted: Bool
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: isGranted ? "checkmark.circle.fill" : "hand.raised.fill")
+            Text(isGranted ? "Granted" : "Waiting")
+                .fontWeight(.semibold)
+        }
+        .font(.callout)
+        .foregroundColor(isGranted ? .green : .orange)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background((isGranted ? Color.green : Color.orange).opacity(0.12))
+        .clipShape(Capsule())
+    }
+}
+
+struct InlineValidationRow: View {
+    let systemImage: String
+    let tint: Color
+    let message: String
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: systemImage)
+                .foregroundColor(tint)
+
+            Text(message)
+                .font(.caption)
+                .foregroundColor(.secondary)
         }
     }
 }

@@ -22,11 +22,13 @@
 		APP016 /* NetworkMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC016 /* NetworkMonitor.swift */; };
 		APP017 /* HUDService.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC017 /* HUDService.swift */; };
 		APP018 /* HUDView.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC018 /* HUDView.swift */; };
+		APP019 /* OnboardingFlow.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC019 /* OnboardingFlow.swift */; };
+		APP020 /* Branding.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC020 /* Branding.swift */; };
+		APP021 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = ASSET001 /* Assets.xcassets */; };
 		PKG001 /* SQLite in Frameworks */ = {isa = PBXBuildFile; productRef = PKGREF001 /* SQLite */; };
 		PKG002 /* HotKey in Frameworks */ = {isa = PBXBuildFile; productRef = PKGREF002 /* HotKey */; };
 		TAPP001 /* WhitespaceNormalizationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST001 /* WhitespaceNormalizationTests.swift */; };
 		TAPP002 /* HUDViewTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST002 /* HUDViewTests.swift */; };
-		TAPP003 /* RateLimitingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST003 /* RateLimitingTests.swift */; };
 		TAPP004 /* CorrectionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST004 /* CorrectionTests.swift */; };
 		TAPP005 /* HUDServicePositioningTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST005 /* HUDServicePositioningTests.swift */; };
 		TAPP006 /* AppStateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST006 /* AppStateTests.swift */; };
@@ -38,6 +40,7 @@
 		TAPP012 /* TextCorrectionServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST012 /* TextCorrectionServiceTests.swift */; };
 		TAPP013 /* SentenceChunkingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST013 /* SentenceChunkingTests.swift */; };
 		TAPP014 /* TextSelectionFlowTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST014 /* TextSelectionFlowTests.swift */; };
+		TAPP015 /* OnboardingFlowTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST015 /* OnboardingFlowTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -52,6 +55,7 @@
 
 /* Begin PBXFileReference section */
 		INFO001 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		ASSET001 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		PRODUCT /* TypoFixr.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = TypoFixr.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		TESTPRODUCT /* TypoFixrTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = TypoFixrTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		SRC001 /* TypoFixrApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TypoFixrApp.swift; sourceTree = "<group>"; };
@@ -69,9 +73,10 @@
 		SRC016 /* NetworkMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkMonitor.swift; sourceTree = "<group>"; };
 		SRC017 /* HUDService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HUDService.swift; sourceTree = "<group>"; };
 		SRC018 /* HUDView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HUDView.swift; sourceTree = "<group>"; };
+		SRC019 /* OnboardingFlow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingFlow.swift; sourceTree = "<group>"; };
+		SRC020 /* Branding.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Branding.swift; sourceTree = "<group>"; };
 		TST001 /* WhitespaceNormalizationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WhitespaceNormalizationTests.swift; sourceTree = "<group>"; };
 		TST002 /* HUDViewTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HUDViewTests.swift; sourceTree = "<group>"; };
-		TST003 /* RateLimitingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RateLimitingTests.swift; sourceTree = "<group>"; };
 		TST004 /* CorrectionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CorrectionTests.swift; sourceTree = "<group>"; };
 		TST005 /* HUDServicePositioningTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HUDServicePositioningTests.swift; sourceTree = "<group>"; };
 		TST006 /* AppStateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStateTests.swift; sourceTree = "<group>"; };
@@ -83,6 +88,7 @@
 		TST012 /* TextCorrectionServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TextCorrectionServiceTests.swift; sourceTree = "<group>"; };
 		TST013 /* SentenceChunkingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SentenceChunkingTests.swift; sourceTree = "<group>"; };
 		TST014 /* TextSelectionFlowTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TextSelectionFlowTests.swift; sourceTree = "<group>"; };
+		TST015 /* OnboardingFlowTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingFlowTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -104,6 +110,17 @@
 		};
 /* End PBXFrameworksBuildPhase section */
 
+/* Begin PBXResourcesBuildPhase section */
+		RESOURCES /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				APP021 /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
 /* Begin PBXGroup section */
 		DATABASE /* Database */ = {
 			isa = PBXGroup;
@@ -118,6 +135,7 @@
 			children = (
 				SRC003 /* AppState.swift */,
 				SRC004 /* Correction.swift */,
+				SRC019 /* OnboardingFlow.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -162,6 +180,7 @@
 				SERVICES /* Services */,
 				DATABASE /* Database */,
 				VIEWS /* Views */,
+				ASSET001 /* Assets.xcassets */,
 				INFO001 /* Info.plist */,
 			);
 			path = Sources/TypoFixr;
@@ -186,11 +205,11 @@
 				TST005 /* HUDServicePositioningTests.swift */,
 				TST002 /* HUDViewTests.swift */,
 				TST008 /* KeyboardShortcutTests.swift */,
-				TST003 /* RateLimitingTests.swift */,
 				TST007 /* SecurityServiceTests.swift */,
 				TST013 /* SentenceChunkingTests.swift */,
 				TST012 /* TextCorrectionServiceTests.swift */,
 				TST014 /* TextSelectionFlowTests.swift */,
+				TST015 /* OnboardingFlowTests.swift */,
 				TST001 /* WhitespaceNormalizationTests.swift */,
 			);
 			path = TypoFixrTests;
@@ -199,6 +218,7 @@
 		VIEWS /* Views */ = {
 			isa = PBXGroup;
 			children = (
+				SRC020 /* Branding.swift */,
 				SRC018 /* HUDView.swift */,
 				SRC011 /* MenuBarView.swift */,
 				SRC013 /* OnboardingView.swift */,
@@ -216,6 +236,7 @@
 			buildPhases = (
 				SOURCES /* Sources */,
 				FRMWRK /* Frameworks */,
+				RESOURCES /* Resources */,
 			);
 			buildRules = (
 			);
@@ -309,6 +330,8 @@
 				APP016 /* NetworkMonitor.swift in Sources */,
 				APP017 /* HUDService.swift in Sources */,
 				APP018 /* HUDView.swift in Sources */,
+				APP019 /* OnboardingFlow.swift in Sources */,
+				APP020 /* Branding.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -318,7 +341,6 @@
 			files = (
 				TAPP001 /* WhitespaceNormalizationTests.swift in Sources */,
 				TAPP002 /* HUDViewTests.swift in Sources */,
-				TAPP003 /* RateLimitingTests.swift in Sources */,
 				TAPP004 /* CorrectionTests.swift in Sources */,
 				TAPP005 /* HUDServicePositioningTests.swift in Sources */,
 				TAPP006 /* AppStateTests.swift in Sources */,
@@ -330,6 +352,7 @@
 				TAPP012 /* TextCorrectionServiceTests.swift in Sources */,
 				TAPP013 /* SentenceChunkingTests.swift in Sources */,
 				TAPP014 /* TextSelectionFlowTests.swift in Sources */,
+				TAPP015 /* OnboardingFlowTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -425,12 +448,12 @@
 				INFOPLIST_FILE = Sources/TypoFixr/Info.plist;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
 				INFOPLIST_KEY_LSUIElement = YES;
-				INFOPLIST_KEY_NSHumanReadableCopyright = "Copyright © 2024 TypoFixr. All rights reserved.";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "Copyright © 2026 TypoFixr. All rights reserved.";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 1.3.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.typofixr.app;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -446,7 +469,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEAD_CODE_STRIPPING = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 1.3.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.typofixr.app.tests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
@@ -528,12 +551,12 @@
 				INFOPLIST_FILE = Sources/TypoFixr/Info.plist;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
 				INFOPLIST_KEY_LSUIElement = YES;
-				INFOPLIST_KEY_NSHumanReadableCopyright = "Copyright © 2024 TypoFixr. All rights reserved.";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "Copyright © 2026 TypoFixr. All rights reserved.";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 1.3.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.typofixr.app;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -549,7 +572,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEAD_CODE_STRIPPING = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 1.3.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.typofixr.app.tests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
