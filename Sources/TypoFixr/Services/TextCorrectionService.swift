@@ -22,11 +22,14 @@ class TextCorrectionService {
 
     @MainActor
     func performCorrection() async {
+        TelemetryService.shared.track(.correctionStarted)
+
         // Check accessibility permission
         guard appState.hasAccessibilityPermission else {
             appState.lastError = "Accessibility permission required"
             appState.setIconState(.noPermission)
             HUDService.shared.show(title: "Permission Needed", subtitle: "Grant Accessibility access", isSuccess: false)
+            TelemetryService.shared.track(.correctionFailed(reason: .accessibilityPermissionMissing))
             return
         }
 
@@ -35,6 +38,7 @@ class TextCorrectionService {
             appState.lastError = "No internet connection"
             appState.setIconState(.offline)
             HUDService.shared.show(title: "No Connection", subtitle: "Check your internet", isSuccess: false)
+            TelemetryService.shared.track(.correctionFailed(reason: .offline))
             return
         }
 
@@ -91,6 +95,7 @@ class TextCorrectionService {
         case .tooLong(let selected):
             appState.setIconState(.error, autoReset: true)
             restoreClipboard(pasteboard: pasteboard, savedContent: savedClipboard)
+            TelemetryService.shared.track(.correctionFailed(reason: .selectionTooLong))
             await showTextTooLongAlert(characterCount: selected.count)
             return
 
@@ -98,6 +103,7 @@ class TextCorrectionService {
             appState.setIconState(.error, autoReset: true)
             restoreClipboard(pasteboard: pasteboard, savedContent: savedClipboard)
             HUDService.shared.show(title: "Select Text", subtitle: "Highlight text first", isSuccess: false)
+            TelemetryService.shared.track(.correctionFailed(reason: .noSelection))
             return
         }
 
@@ -112,6 +118,9 @@ class TextCorrectionService {
             appState.setIconState(.error, autoReset: true)
             restoreClipboard(pasteboard: pasteboard, savedContent: savedClipboard)
             HUDService.shared.show(title: "Select Text", subtitle: "Highlight text first", isSuccess: false)
+            TelemetryService.shared.track(
+                .correctionFailed(reason: .noSelection, selectionSource: selectionSource)
+            )
             return
         }
 
@@ -127,16 +136,22 @@ class TextCorrectionService {
                 // Block completely - no option to proceed
                 appState.setIconState(.error, autoReset: true)
                 restoreClipboard(pasteboard: pasteboard, savedContent: savedClipboard)
+                TelemetryService.shared.track(.securityWarningShown(kind: .promptInjection))
+                TelemetryService.shared.track(.correctionFailed(reason: .promptInjectionBlocked))
                 await showBlockedAlert(patterns: patterns)
                 return
 
             case .sensitiveDataWarning:
                 // Allow user choice
                 if let warning = SecurityService.shared.getWarningMessage(for: securityResult) {
+                    TelemetryService.shared.track(.securityWarningShown(kind: .sensitiveData))
                     let shouldProceed = await showSecurityWarningAlert(title: warning.title, message: warning.message)
                     if !shouldProceed {
                         appState.setIconState(.normal)
                         restoreClipboard(pasteboard: pasteboard, savedContent: savedClipboard)
+                        TelemetryService.shared.track(
+                            .correctionFailed(reason: .sensitiveDataCancelled, selectionSource: selectionSource)
+                        )
                         return
                     }
                 }
@@ -174,6 +189,7 @@ class TextCorrectionService {
                 appState.setIconState(.success, autoReset: true)
                 restoreClipboard(pasteboard: pasteboard, savedContent: savedClipboard)
                 HUDService.shared.show(title: "No Changes", subtitle: "Your text looks good!", isSuccess: true)
+                TelemetryService.shared.track(.correctionNoChanges(selectionSource: selectionSource))
                 return
             }
 
@@ -221,17 +237,27 @@ class TextCorrectionService {
             // Show success icon and HUD
             appState.setIconState(.success, autoReset: true)
             HUDService.shared.show(title: "Fixed!", subtitle: "⌘Z to undo", isSuccess: true)
+            TelemetryService.shared.track(.correctionSucceeded(selectionSource: selectionSource))
 
         } catch let error as GroqService.APIError {
             appState.lastError = error.localizedDescription
             appState.setIconState(.error, autoReset: true)
             HUDService.shared.show(title: "Error", subtitle: error.localizedDescription, isSuccess: false)
             restoreClipboard(pasteboard: pasteboard, savedContent: savedClipboard)
+            TelemetryService.shared.track(
+                .correctionFailed(
+                    reason: CorrectionFailureReason(apiError: error),
+                    selectionSource: selectionSource
+                )
+            )
         } catch {
             appState.lastError = error.localizedDescription
             appState.setIconState(.error, autoReset: true)
             HUDService.shared.show(title: "Error", subtitle: "An unexpected error occurred", isSuccess: false)
             restoreClipboard(pasteboard: pasteboard, savedContent: savedClipboard)
+            TelemetryService.shared.track(
+                .correctionFailed(reason: .unexpected, selectionSource: selectionSource)
+            )
         }
     }
 

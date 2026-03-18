@@ -5,6 +5,10 @@ import AppKit
 struct TypoFixrApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
 
+    init() {
+        TelemetryService.shared.initialize()
+    }
+
     var body: some Scene {
         Settings {
             SettingsView()

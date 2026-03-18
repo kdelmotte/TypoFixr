@@ -330,8 +330,12 @@ struct OnboardingView: View {
         permissionTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { timer in
             let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: false]
             let trusted = AXIsProcessTrustedWithOptions(options as CFDictionary)
+            let wasTrusted = appState.hasAccessibilityPermission
 
             DispatchQueue.main.async {
+                if trusted && !wasTrusted {
+                    TelemetryService.shared.track(.accessibilityPermissionGranted(source: .onboarding))
+                }
                 appState.hasAccessibilityPermission = trusted
             }
 

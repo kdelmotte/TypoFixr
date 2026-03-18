@@ -130,10 +130,7 @@ struct ShortcutSettingsView: View {
                         Spacer()
                         
                         Button("Reset to Default") {
-                            appState.keyboardShortcut = KeyboardShortcutConfig(
-                                keyCode: 2, // D key
-                                modifiers: [.command, .shift]
-                            )
+                            appState.keyboardShortcut = .defaultConfig
                         }
                         .disabled(isRecording)
                     }

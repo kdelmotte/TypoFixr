@@ -15,6 +15,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Set activation policy FIRST (menu bar app only)
         NSApp.setActivationPolicy(.accessory)
+        TelemetryService.shared.track(.appLaunched)
 
         // Initialize services
         hotkeyService = HotkeyService(appState: appState)
@@ -106,7 +107,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             hotkeyService.registerHotkey()
 
             // Open settings window
-            showSettings()
+            showSettingsWindow(origin: .onboardingCompletion)
         }
     }
     
@@ -180,6 +181,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var settingsWindow: NSWindow?
 
     @objc func showSettings() {
+        showSettingsWindow(origin: .menuBar)
+    }
+
+    private func showSettingsWindow(origin: SettingsOpenSource) {
         // Don't show settings if a security alert is being displayed
         guard !appState.isShowingSecurityAlert else { return }
 
@@ -214,6 +219,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 NSApp.activate(ignoringOtherApps: true)
             }
             window.makeKeyAndOrderFront(nil)
+            TelemetryService.shared.track(.settingsOpened(source: origin))
         }
     }
 

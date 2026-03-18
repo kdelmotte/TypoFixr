@@ -17,7 +17,11 @@ class AppState: ObservableObject {
     @Published var hasAccessibilityPermission: Bool = false
     @Published var hasCompletedOnboarding: Bool {
         didSet {
+            guard oldValue != hasCompletedOnboarding else { return }
             UserDefaults.standard.set(hasCompletedOnboarding, forKey: "hasCompletedOnboarding")
+            if hasCompletedOnboarding {
+                TelemetryService.shared.track(.onboardingCompleted)
+            }
         }
     }
     
@@ -37,7 +41,11 @@ class AppState: ObservableObject {
     
     @Published var keyboardShortcut: KeyboardShortcutConfig {
         didSet {
+            guard oldValue != keyboardShortcut else { return }
             saveShortcut()
+            TelemetryService.shared.track(
+                .shortcutChanged(isDefault: keyboardShortcut == .defaultConfig)
+            )
         }
     }
     @Published var languagePreference: String {
@@ -82,11 +90,7 @@ class AppState: ObservableObject {
            let shortcut = try? JSONDecoder().decode(KeyboardShortcutConfig.self, from: data) {
             self.keyboardShortcut = shortcut
         } else {
-            // Default: Cmd + Shift + D
-            self.keyboardShortcut = KeyboardShortcutConfig(
-                keyCode: 2, // D key
-                modifiers: [.command, .shift]
-            )
+            self.keyboardShortcut = .defaultConfig
         }
         
         // Load API key from Keychain, but discard obvious placeholder/example values.
@@ -165,6 +169,11 @@ class AppState: ObservableObject {
 struct KeyboardShortcutConfig: Codable, Equatable {
     var keyCode: UInt32
     var modifiers: Set<ModifierKey>
+
+    static let defaultConfig = KeyboardShortcutConfig(
+        keyCode: 2, // D key
+        modifiers: [.command, .shift]
+    )
     
     enum ModifierKey: String, Codable {
         case command

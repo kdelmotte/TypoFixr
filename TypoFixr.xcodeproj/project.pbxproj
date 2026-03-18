@@ -24,9 +24,11 @@
 		APP018 /* HUDView.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC018 /* HUDView.swift */; };
 		APP019 /* OnboardingFlow.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC019 /* OnboardingFlow.swift */; };
 		APP020 /* Branding.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC020 /* Branding.swift */; };
+		APP022 /* TelemetryService.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRC021 /* TelemetryService.swift */; };
 		APP021 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = ASSET001 /* Assets.xcassets */; };
 		PKG001 /* SQLite in Frameworks */ = {isa = PBXBuildFile; productRef = PKGREF001 /* SQLite */; };
 		PKG002 /* HotKey in Frameworks */ = {isa = PBXBuildFile; productRef = PKGREF002 /* HotKey */; };
+		PKG003 /* TelemetryDeck in Frameworks */ = {isa = PBXBuildFile; productRef = PKGREF003 /* TelemetryDeck */; };
 		TAPP001 /* WhitespaceNormalizationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST001 /* WhitespaceNormalizationTests.swift */; };
 		TAPP002 /* HUDViewTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST002 /* HUDViewTests.swift */; };
 		TAPP004 /* CorrectionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST004 /* CorrectionTests.swift */; };
@@ -41,6 +43,7 @@
 		TAPP013 /* SentenceChunkingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST013 /* SentenceChunkingTests.swift */; };
 		TAPP014 /* TextSelectionFlowTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST014 /* TextSelectionFlowTests.swift */; };
 		TAPP015 /* OnboardingFlowTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST015 /* OnboardingFlowTests.swift */; };
+		TAPP016 /* TelemetryServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST016 /* TelemetryServiceTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -75,6 +78,7 @@
 		SRC018 /* HUDView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HUDView.swift; sourceTree = "<group>"; };
 		SRC019 /* OnboardingFlow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingFlow.swift; sourceTree = "<group>"; };
 		SRC020 /* Branding.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Branding.swift; sourceTree = "<group>"; };
+		SRC021 /* TelemetryService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TelemetryService.swift; sourceTree = "<group>"; };
 		TST001 /* WhitespaceNormalizationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WhitespaceNormalizationTests.swift; sourceTree = "<group>"; };
 		TST002 /* HUDViewTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HUDViewTests.swift; sourceTree = "<group>"; };
 		TST004 /* CorrectionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CorrectionTests.swift; sourceTree = "<group>"; };
@@ -89,6 +93,7 @@
 		TST013 /* SentenceChunkingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SentenceChunkingTests.swift; sourceTree = "<group>"; };
 		TST014 /* TextSelectionFlowTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TextSelectionFlowTests.swift; sourceTree = "<group>"; };
 		TST015 /* OnboardingFlowTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingFlowTests.swift; sourceTree = "<group>"; };
+		TST016 /* TelemetryServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TelemetryServiceTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -98,6 +103,7 @@
 			files = (
 				PKG001 /* SQLite in Frameworks */,
 				PKG002 /* HotKey in Frameworks */,
+				PKG003 /* TelemetryDeck in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -166,6 +172,7 @@
 				SRC017 /* HUDService.swift */,
 				SRC016 /* NetworkMonitor.swift */,
 				SRC015 /* SecurityService.swift */,
+				SRC021 /* TelemetryService.swift */,
 				SRC009 /* TextCorrectionService.swift */,
 			);
 			path = Services;
@@ -209,6 +216,7 @@
 				TST013 /* SentenceChunkingTests.swift */,
 				TST012 /* TextCorrectionServiceTests.swift */,
 				TST014 /* TextSelectionFlowTests.swift */,
+				TST016 /* TelemetryServiceTests.swift */,
 				TST015 /* OnboardingFlowTests.swift */,
 				TST001 /* WhitespaceNormalizationTests.swift */,
 			);
@@ -246,6 +254,7 @@
 			packageProductDependencies = (
 				PKGREF001 /* SQLite */,
 				PKGREF002 /* HotKey */,
+				PKGREF003 /* TelemetryDeck */,
 			);
 			productName = TypoFixr;
 			productReference = PRODUCT /* TypoFixr.app */;
@@ -299,6 +308,7 @@
 			packageReferences = (
 				PKGREMOTE001 /* XCRemoteSwiftPackageReference "SQLite.swift" */,
 				PKGREMOTE002 /* XCRemoteSwiftPackageReference "HotKey" */,
+				PKGREMOTE003 /* XCRemoteSwiftPackageReference "SwiftSDK" */,
 			);
 			productRefGroup = PRODUCTS /* Products */;
 			projectDirPath = "";
@@ -332,6 +342,7 @@
 				APP018 /* HUDView.swift in Sources */,
 				APP019 /* OnboardingFlow.swift in Sources */,
 				APP020 /* Branding.swift in Sources */,
+				APP022 /* TelemetryService.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -352,6 +363,7 @@
 				TAPP012 /* TextCorrectionServiceTests.swift in Sources */,
 				TAPP013 /* SentenceChunkingTests.swift in Sources */,
 				TAPP014 /* TextSelectionFlowTests.swift in Sources */,
+				TAPP016 /* TelemetryServiceTests.swift in Sources */,
 				TAPP015 /* OnboardingFlowTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -630,6 +642,14 @@
 				minimumVersion = 0.2.0;
 			};
 		};
+		PKGREMOTE003 /* XCRemoteSwiftPackageReference "SwiftSDK" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/TelemetryDeck/SwiftSDK";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.11.0;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -642,6 +662,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = PKGREMOTE002 /* XCRemoteSwiftPackageReference "HotKey" */;
 			productName = HotKey;
+		};
+		PKGREF003 /* TelemetryDeck */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = PKGREMOTE003 /* XCRemoteSwiftPackageReference "SwiftSDK" */;
+			productName = TelemetryDeck;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};
