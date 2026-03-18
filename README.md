@@ -237,6 +237,9 @@ Contributions are welcome! Please open an issue or pull request.
 
 ## Changelog
 
+### v1.3.1
+- Added TelemetryDeck analytics tracking for onboarding, settings, security warnings, and correction outcomes
+
 ### v1.3.0
 - Switched to Groq-hosted OpenAI GPT-OSS 20B reasoning model for higher-quality corrections
 - Long text is now split into sentences and corrected in parallel — faster and more reliable
