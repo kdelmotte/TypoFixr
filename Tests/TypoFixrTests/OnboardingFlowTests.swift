@@ -46,9 +46,23 @@ final class OnboardingFlowTests: XCTestCase {
     func testAPIKeyStepAllowsWhenKeyHasGroqPrefix() {
         let state = OnboardingGateState(
             hasAccessibilityPermission: true,
-            apiKeyValidationState: GroqAPIKeyValidationState(apiKey: "gsk_test_123")
+            apiKeyValidationState: GroqAPIKeyValidationState(apiKey: "gsk_live_123456789")
         )
 
         XCTAssertTrue(state.canContinue(from: .apiKey))
+    }
+
+    func testAPIKeyStepBlocksExamplePlaceholderValue() {
+        let state = OnboardingGateState(
+            hasAccessibilityPermission: true,
+            apiKeyValidationState: GroqAPIKeyValidationState(apiKey: "gsk_...")
+        )
+
+        XCTAssertFalse(state.canContinue(from: .apiKey))
+    }
+
+    func testSanitizedPersistedAPIKeyClearsObviousExampleValues() {
+        XCTAssertEqual(GroqAPIKeyValidationState.sanitizedPersistedAPIKey("gsk_..."), "")
+        XCTAssertEqual(GroqAPIKeyValidationState.sanitizedPersistedAPIKey("gsk_test_key"), "")
     }
 }

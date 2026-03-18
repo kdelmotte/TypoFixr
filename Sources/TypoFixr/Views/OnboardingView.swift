@@ -172,16 +172,16 @@ struct OnboardingView: View {
                 Text("Paste your Groq API key")
                     .font(.headline)
 
-                Text("TypoFixr sends correction requests directly to Groq with your key. We do not proxy traffic or create an account for this version.")
+                Text("Paste the full key from console.groq.com/keys. TypoFixr sends correction requests directly to Groq with your key. We do not proxy traffic or create an account for this version.")
                     .font(.callout)
                     .foregroundColor(.secondary)
 
                 HStack(spacing: 10) {
                     Group {
                         if showAPIKey {
-                            TextField("gsk_...", text: $appState.groqApiKey)
+                            TextField("Paste full API key", text: $appState.groqApiKey)
                         } else {
-                            SecureField("gsk_...", text: $appState.groqApiKey)
+                            SecureField("Paste full API key", text: $appState.groqApiKey)
                         }
                     }
                     .textFieldStyle(.roundedBorder)

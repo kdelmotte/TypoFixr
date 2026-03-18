@@ -51,12 +51,44 @@ enum GroqAPIKeyValidationState: Equatable {
     case invalidFormat
     case valid
 
+    private static let obviousExampleKeys: Set<String> = [
+        "gsk_...",
+        "gsk_test_key"
+    ]
+
+    static func trimmed(_ apiKey: String) -> String {
+        apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    static func isObviousExample(_ apiKey: String) -> Bool {
+        obviousExampleKeys.contains(trimmed(apiKey))
+    }
+
+    static func isValidGroqAPIKey(_ apiKey: String) -> Bool {
+        let trimmedKey = trimmed(apiKey)
+
+        guard !trimmedKey.isEmpty else { return false }
+        guard !isObviousExample(trimmedKey) else { return false }
+        guard !trimmedKey.contains(where: \.isWhitespace) else { return false }
+
+        return trimmedKey.hasPrefix("gsk_") && trimmedKey.count > 12
+    }
+
+    static func sanitizedPersistedAPIKey(_ apiKey: String?) -> String {
+        guard let apiKey else { return "" }
+
+        let trimmedKey = trimmed(apiKey)
+        guard !isObviousExample(trimmedKey) else { return "" }
+
+        return trimmedKey
+    }
+
     init(apiKey: String) {
-        let trimmedKey = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedKey = Self.trimmed(apiKey)
 
         if trimmedKey.isEmpty {
             self = .empty
-        } else if trimmedKey.hasPrefix("gsk_") {
+        } else if Self.isValidGroqAPIKey(trimmedKey) {
             self = .valid
         } else {
             self = .invalidFormat
@@ -66,11 +98,11 @@ enum GroqAPIKeyValidationState: Equatable {
     var message: String {
         switch self {
         case .empty:
-            return "Paste a Groq API key to finish setup."
+            return "Paste your full Groq API key to finish setup."
         case .invalidFormat:
-            return "Groq API keys should start with \"gsk_\"."
+            return "Paste the full key from console.groq.com/keys, including the prefix."
         case .valid:
-            return "Key format looks valid."
+            return "Full key format looks valid."
         }
     }
 

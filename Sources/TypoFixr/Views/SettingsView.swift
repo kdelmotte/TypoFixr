@@ -257,6 +257,32 @@ struct APISettingsView: View {
     @EnvironmentObject var appState: AppState
     @State private var showAPIKey = false
 
+    private var apiKeyValidationState: GroqAPIKeyValidationState {
+        GroqAPIKeyValidationState(apiKey: appState.groqApiKey)
+    }
+
+    private var apiKeyValidationTint: Color {
+        switch apiKeyValidationState {
+        case .empty:
+            return .orange
+        case .invalidFormat:
+            return .orange
+        case .valid:
+            return .green
+        }
+    }
+
+    private var apiKeyValidationMessage: String {
+        switch apiKeyValidationState {
+        case .empty:
+            return "Paste your full Groq API key to enable corrections."
+        case .invalidFormat:
+            return "Paste the full key from console.groq.com/keys, including the prefix."
+        case .valid:
+            return "API key configured"
+        }
+    }
+
     var body: some View {
         Form {
             Section {
@@ -264,16 +290,16 @@ struct APISettingsView: View {
                     Text("Groq API Key")
                         .font(.headline)
 
-                    Text("Required to use TypoFixr. Corrections run on Groq-hosted OpenAI GPT-OSS 20B. Get your API key from console.groq.com")
+                    Text("Required to use TypoFixr. Paste the full key from console.groq.com/keys. Corrections run on Groq-hosted OpenAI GPT-OSS 20B.")
                         .font(.caption)
                         .foregroundColor(.secondary)
 
                     HStack {
                         if showAPIKey {
-                            TextField("gsk_...", text: $appState.groqApiKey)
+                            TextField("Paste full API key", text: $appState.groqApiKey)
                                 .textFieldStyle(.roundedBorder)
                         } else {
-                            SecureField("gsk_...", text: $appState.groqApiKey)
+                            SecureField("Paste full API key", text: $appState.groqApiKey)
                                 .textFieldStyle(.roundedBorder)
                         }
 
@@ -283,31 +309,11 @@ struct APISettingsView: View {
                         .buttonStyle(.borderless)
                     }
 
-                    if appState.groqApiKey.isEmpty {
-                        HStack {
-                            Image(systemName: "exclamationmark.triangle.fill")
-                                .foregroundColor(.orange)
-                            Text("API key required for corrections")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                        }
-                    } else if !appState.groqApiKey.hasPrefix("gsk_") {
-                        HStack {
-                            Image(systemName: "exclamationmark.triangle.fill")
-                                .foregroundColor(.orange)
-                            Text("API key should start with 'gsk_'")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                        }
-                    } else {
-                        HStack {
-                            Image(systemName: "checkmark.circle.fill")
-                                .foregroundColor(.green)
-                            Text("API key configured")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                        }
-                    }
+                    InlineValidationRow(
+                        systemImage: apiKeyValidationState.iconSystemName,
+                        tint: apiKeyValidationTint,
+                        message: apiKeyValidationMessage
+                    )
                 }
             }
 

@@ -89,8 +89,14 @@ class AppState: ObservableObject {
             )
         }
         
-        // Load API key from Keychain
-        self.groqApiKey = KeychainHelper.load(key: "groq_api_key") ?? ""
+        // Load API key from Keychain, but discard obvious placeholder/example values.
+        let persistedGroqAPIKey = KeychainHelper.load(key: "groq_api_key")
+        let sanitizedGroqAPIKey = GroqAPIKeyValidationState.sanitizedPersistedAPIKey(persistedGroqAPIKey)
+        self.groqApiKey = sanitizedGroqAPIKey
+
+        if (persistedGroqAPIKey ?? "") != sanitizedGroqAPIKey {
+            KeychainHelper.delete(key: "groq_api_key")
+        }
 
         // Load recent history from database
         loadRecentHistory()
@@ -145,7 +151,13 @@ class AppState: ObservableObject {
     }
     
     private func saveApiKey() {
-        KeychainHelper.save(key: "groq_api_key", value: groqApiKey)
+        let trimmedApiKey = GroqAPIKeyValidationState.trimmed(groqApiKey)
+
+        if trimmedApiKey.isEmpty {
+            KeychainHelper.delete(key: "groq_api_key")
+        } else {
+            KeychainHelper.save(key: "groq_api_key", value: trimmedApiKey)
+        }
     }
 }
 
@@ -254,6 +266,23 @@ struct KeychainHelper {
         save(key: key, value: value)
 
         return value
+    }
+
+    static func delete(key: String) {
+        let scopedQuery: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: key
+        ]
+
+        SecItemDelete(scopedQuery as CFDictionary)
+
+        let legacyQuery: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrAccount as String: key
+        ]
+
+        SecItemDelete(legacyQuery as CFDictionary)
     }
 
 }
