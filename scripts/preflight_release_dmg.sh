@@ -9,9 +9,6 @@ DERIVED_DATA_PATH="$ROOT_DIR/.build/xcode-preflight"
 RELEASE_APP_PATH="$DERIVED_DATA_PATH/Build/Products/Release/TypoFixr.app"
 STAGED_APP_PATH="$ROOT_DIR/.build/preflight/TypoFixr.app"
 PREVIEW_DMG_PATH="$ROOT_DIR/.build/preflight/TypoFixr-preflight.dmg"
-DMG_BACKGROUND_PATH="$ROOT_DIR/.build/preflight/dmg-background.png"
-DMG_VENV_PATH="$ROOT_DIR/.build/dmgbuild-venv"
-DMG_STAGING_DIR="$ROOT_DIR/.build/preflight/dmg-staging"
 MOUNT_POINT="$ROOT_DIR/.build/preflight/mount"
 INSTALLED_APP_PATH="$HOME/Applications/TypoFixr.app"
 DMG_TITLE="Install TypoFixr"
@@ -55,27 +52,11 @@ rm -rf "$STAGED_APP_PATH"
 ditto "$RELEASE_APP_PATH" "$STAGED_APP_PATH"
 codesign --force --deep --sign "$CERT_NAME" "$STAGED_APP_PATH"
 
-printf '==> Preparing DMG packaging toolchain\n'
-if [ ! -x "$DMG_VENV_PATH/bin/python" ]; then
-  python3 -m venv "$DMG_VENV_PATH"
-  "$DMG_VENV_PATH/bin/python" -m pip install --quiet --upgrade pip
-fi
-"$DMG_VENV_PATH/bin/python" -m pip install --quiet pillow ds_store mac-alias
-
-printf '==> Generating DMG background\n'
-DMG_BACKGROUND_PATH="$DMG_BACKGROUND_PATH" "$DMG_VENV_PATH/bin/python" "$ROOT_DIR/scripts/generate_dmg_background.py"
-
 printf '==> Packaging local preflight DMG\n'
-rm -f "$PREVIEW_DMG_PATH"
-rm -rf "$DMG_STAGING_DIR"
-mkdir -p "$DMG_STAGING_DIR"
-ditto "$STAGED_APP_PATH" "$DMG_STAGING_DIR/TypoFixr.app"
-
-"$DMG_VENV_PATH/bin/python" "$ROOT_DIR/scripts/build_dmg.py" \
-  --app-path "$DMG_STAGING_DIR/TypoFixr.app" \
-  --background-path "$DMG_BACKGROUND_PATH" \
-  --dmg-title "$DMG_TITLE" \
-  --output-path "$PREVIEW_DMG_PATH"
+APP_PATH="$STAGED_APP_PATH" \
+OUTPUT_DMG_PATH="$PREVIEW_DMG_PATH" \
+DMG_TITLE="$DMG_TITLE" \
+"$ROOT_DIR/scripts/package_dmg.sh"
 
 printf '==> Mounting DMG and reinstalling app\n'
 mkdir -p "$MOUNT_POINT"

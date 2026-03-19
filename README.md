@@ -237,6 +237,10 @@ Contributions are welcome! Please open an issue or pull request.
 
 ## Changelog
 
+### v1.3.6
+- Replaced the custom DMG packaging path with a standard `appdmg` drag-and-drop installer flow
+- Switched to static DMG background assets so the release and local preflight use the same fixed installer layout
+
 ### v1.3.5
 - Rebuilt the DMG authoring path so Finder gets both background records instead of dropping the installer art
 - Restored the installer background/arrow path without relying on flaky Finder automation

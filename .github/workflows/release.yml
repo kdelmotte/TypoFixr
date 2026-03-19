@@ -111,39 +111,21 @@ jobs:
           echo "Stapling failed after 3 attempts"
           exit 1
 
-      - name: Install DMG packaging dependencies
+      - name: Verify Node toolchain
         run: |
-          DMG_VENV="$RUNNER_TEMP/dmgbuild-venv"
-          python3 -m venv "$DMG_VENV"
-          "$DMG_VENV/bin/python" -m pip install --quiet --upgrade pip
-          "$DMG_VENV/bin/python" -m pip install --quiet pillow ds_store mac-alias
-          echo "DMG_PYTHON=$DMG_VENV/bin/python" >> "$GITHUB_ENV"
+          node --version
+          npx --version
 
       - name: Package DMG for release
         run: |
           APP_PATH="$RUNNER_TEMP/DerivedDataRelease/Build/Products/Release/TypoFixr.app"
           RELEASE_DMG="$RUNNER_TEMP/TypoFixr.dmg"
-          DMG_BACKGROUND_PATH="$RUNNER_TEMP/dmg-background.png"
-          DMG_PYTHON="$DMG_PYTHON"
-          DMG_STAGING_DIR="$RUNNER_TEMP/dmg-staging"
           DMG_TITLE="Install TypoFixr"
 
-          for volume in /Volumes/Install\\ TypoFixr* /Volumes/TypoFixr*; do
-            [ -e "$volume" ] || continue
-            hdiutil detach "$volume" -force -quiet || true
-          done
-
-          DMG_BACKGROUND_PATH="$DMG_BACKGROUND_PATH" "$DMG_PYTHON" scripts/generate_dmg_background.py
-
-          rm -rf "$DMG_STAGING_DIR"
-          mkdir -p "$DMG_STAGING_DIR"
-          ditto "$APP_PATH" "$DMG_STAGING_DIR/TypoFixr.app"
-
-          "$DMG_PYTHON" scripts/build_dmg.py \
-            --app-path "$DMG_STAGING_DIR/TypoFixr.app" \
-            --background-path "$DMG_BACKGROUND_PATH" \
-            --dmg-title "$DMG_TITLE" \
-            --output-path "$RELEASE_DMG"
+          APP_PATH="$APP_PATH" \
+          OUTPUT_DMG_PATH="$RELEASE_DMG" \
+          DMG_TITLE="$DMG_TITLE" \
+          ./scripts/package_dmg.sh
 
           codesign --force --timestamp --sign "Developer ID Application" "$RELEASE_DMG"
           codesign --verify --verbose "$RELEASE_DMG"
