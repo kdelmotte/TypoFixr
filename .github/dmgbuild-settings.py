@@ -20,13 +20,13 @@ include_icon_view_settings = "auto"
 
 arrange_by = None
 grid_offset = (0, 0)
-grid_spacing = 140
+grid_spacing = 120
 scroll_position = (0, 0)
 label_pos = "bottom"
 text_size = 14
-icon_size = 120
+icon_size = 112
 
 icon_locations = {
-    app_name: (180, 255),
-    "Applications": (540, 255),
+    app_name: (180, 242),
+    "Applications": (540, 242),
 }
