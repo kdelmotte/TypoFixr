@@ -237,6 +237,10 @@ Contributions are welcome! Please open an issue or pull request.
 
 ## Changelog
 
+### v1.3.5
+- Rebuilt the DMG authoring path so Finder gets both background records instead of dropping the installer art
+- Restored the installer background/arrow path without relying on flaky Finder automation
+
 ### v1.3.4
 - Hardened DMG packaging so installer metadata no longer collides with stale mounted volumes
 - Simplified the installer styling to a calmer, more reliable drag-to-Applications window

@@ -116,7 +116,7 @@ jobs:
           DMG_VENV="$RUNNER_TEMP/dmgbuild-venv"
           python3 -m venv "$DMG_VENV"
           "$DMG_VENV/bin/python" -m pip install --quiet --upgrade pip
-          "$DMG_VENV/bin/python" -m pip install --quiet dmgbuild pillow
+          "$DMG_VENV/bin/python" -m pip install --quiet pillow ds_store mac-alias
           echo "DMG_PYTHON=$DMG_VENV/bin/python" >> "$GITHUB_ENV"
 
       - name: Package DMG for release
@@ -125,6 +125,7 @@ jobs:
           RELEASE_DMG="$RUNNER_TEMP/TypoFixr.dmg"
           DMG_BACKGROUND_PATH="$RUNNER_TEMP/dmg-background.png"
           DMG_PYTHON="$DMG_PYTHON"
+          DMG_STAGING_DIR="$RUNNER_TEMP/dmg-staging"
           DMG_TITLE="Install TypoFixr"
 
           for volume in /Volumes/Install\\ TypoFixr* /Volumes/TypoFixr*; do
@@ -134,9 +135,15 @@ jobs:
 
           DMG_BACKGROUND_PATH="$DMG_BACKGROUND_PATH" "$DMG_PYTHON" scripts/generate_dmg_background.py
 
-          APP_PATH="$APP_PATH" \
-          DMG_BACKGROUND_PATH="$DMG_BACKGROUND_PATH" \
-          "$DMG_PYTHON" -m dmgbuild -s .github/dmgbuild-settings.py "$DMG_TITLE" "$RELEASE_DMG"
+          rm -rf "$DMG_STAGING_DIR"
+          mkdir -p "$DMG_STAGING_DIR"
+          ditto "$APP_PATH" "$DMG_STAGING_DIR/TypoFixr.app"
+
+          "$DMG_PYTHON" scripts/build_dmg.py \
+            --app-path "$DMG_STAGING_DIR/TypoFixr.app" \
+            --background-path "$DMG_BACKGROUND_PATH" \
+            --dmg-title "$DMG_TITLE" \
+            --output-path "$RELEASE_DMG"
 
           codesign --force --timestamp --sign "Developer ID Application" "$RELEASE_DMG"
           codesign --verify --verbose "$RELEASE_DMG"
