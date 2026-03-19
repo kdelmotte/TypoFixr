@@ -193,7 +193,7 @@ struct OnboardingShell: View {
                     Text("How it works")
                         .font(.headline)
 
-                    Text("TypoFixr waits in the menu bar until you trigger it, fixes the selected text, and pastes the result back where you were typing.")
+                    Text("TypoFixr waits in the menu bar until you trigger it, cleans up your text, and drops the polished version back where you were typing.")
                         .font(.callout)
                         .foregroundColor(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -254,8 +254,8 @@ struct OnboardingShell: View {
                     Text("What this unlocks")
                         .font(.headline)
 
-                    OnboardingBulletRow(systemImage: "text.cursor", text: "Reads the text you selected when you trigger a fix.")
-                    OnboardingBulletRow(systemImage: "arrow.left.arrow.right", text: "Replaces that same text with the corrected version.")
+                    OnboardingBulletRow(systemImage: "text.cursor", text: "Works right inside your current text field when you trigger a fix.")
+                    OnboardingBulletRow(systemImage: "arrow.left.arrow.right", text: "Puts the polished version back in place so you can keep moving.")
                     OnboardingBulletRow(systemImage: "hand.tap", text: "Only runs when you press your shortcut. Nothing is monitored in the background.")
                 }
 

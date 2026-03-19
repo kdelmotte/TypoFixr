@@ -15,7 +15,7 @@ enum OnboardingStep: Int, CaseIterable, Identifiable {
     var title: String {
         switch self {
         case .welcome:
-            return "Fix selected text without leaving your app"
+            return "Instantly fix text without losing your voice"
         case .accessibility:
             return "Give TypoFixr permission to help"
         case .apiKey:
@@ -26,9 +26,9 @@ enum OnboardingStep: Int, CaseIterable, Identifiable {
     var subtitle: String {
         switch self {
         case .welcome:
-            return "Use your shortcut to clean up the text you selected and paste the result back in place."
+            return "Use your shortcut to clean up typos and grammar in place while keeping your tone intact."
         case .accessibility:
-            return "Accessibility access lets TypoFixr read the text you select and paste the corrected version back in place."
+            return "Accessibility access lets TypoFixr work inside your apps and put the polished text back where you were writing."
         case .apiKey:
             return "Your Groq key stays on this Mac and is used for direct requests to Groq when you trigger a correction."
         }

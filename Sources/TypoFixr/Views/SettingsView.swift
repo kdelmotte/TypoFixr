@@ -406,7 +406,7 @@ struct AboutView: View {
                 .font(.caption)
                 .foregroundColor(.secondary)
             
-            Text("A focused menu bar utility for fixing selected text with your own Groq API key.")
+            Text("A focused menu bar utility for instantly fixing text with your own Groq API key.")
                 .font(.body)
                 .multilineTextAlignment(.center)
                 .foregroundColor(.secondary)

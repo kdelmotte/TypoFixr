@@ -37,7 +37,7 @@ struct MenuBarView: View {
                 Text("TypoFixr")
                     .font(.headline)
                 
-                Text("Press \(appState.keyboardShortcut.displayString) to clean up selected text")
+                Text("Press \(appState.keyboardShortcut.displayString) to instantly fix text")
                     .font(.caption)
                     .foregroundColor(.secondary)
             }
