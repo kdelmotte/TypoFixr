@@ -70,7 +70,7 @@ struct GeneralSettingsView: View {
                         Image(systemName: "exclamationmark.triangle.fill")
                             .foregroundColor(.orange)
                         Button("Grant Access") {
-                            AppHelpers.openAccessibilitySettings()
+                            AppHelpers.requestAccessibilityPermission(source: .settings)
                         }
                     }
                 }

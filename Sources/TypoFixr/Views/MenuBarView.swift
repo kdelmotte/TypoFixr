@@ -99,7 +99,7 @@ struct MenuBarView: View {
                     Spacer()
                     
                     Button("Grant") {
-                        AppHelpers.openAccessibilitySettings()
+                        AppHelpers.requestAccessibilityPermission(source: .menuBar)
                     }
                     .buttonStyle(.borderedProminent)
                     .controlSize(.small)

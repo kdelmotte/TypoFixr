@@ -7,10 +7,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     var popover: NSPopover!
     var appState = AppState()
 
+    private let accessibilityPermissionPollingInterval: TimeInterval = 1.0
+    private let accessibilityPermissionPollingTimeout: TimeInterval = 90.0
     private var cancellables = Set<AnyCancellable>()
     private var hotkeyService: HotkeyService!
     private var textCorrectionService: TextCorrectionService!
     private var permissionPollingTimer: Timer?
+    private var permissionPollingDeadline: Date?
+    private var permissionPollingSource: AccessibilityGrantSource?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Set activation policy FIRST (menu bar app only)
@@ -70,6 +74,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 }
             }
             .store(in: &cancellables)
+
+        checkAccessibilityPermission()
 
         // Check if onboarding is needed
         if !appState.hasCompletedOnboarding {
@@ -142,10 +148,26 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     
     private func checkAccessibilityPermission() {
         let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: false]
-        appState.hasAccessibilityPermission = AXIsProcessTrustedWithOptions(options as CFDictionary)
+        let trusted = AXIsProcessTrustedWithOptions(options as CFDictionary)
+        updateAccessibilityPermissionState(isTrusted: trusted, source: permissionPollingSource)
+    }
 
-        // Update icon based on permission status
-        if !appState.hasAccessibilityPermission {
+    private func updateAccessibilityPermissionState(
+        isTrusted: Bool,
+        source: AccessibilityGrantSource? = nil
+    ) {
+        let wasTrusted = appState.hasAccessibilityPermission
+        appState.hasAccessibilityPermission = isTrusted
+
+        if isTrusted {
+            if !wasTrusted, let source {
+                TelemetryService.shared.track(.accessibilityPermissionGranted(source: source))
+            }
+
+            if appState.iconState == .noPermission {
+                appState.setIconState(NetworkMonitor.shared.isConnected ? .normal : .offline)
+            }
+        } else {
             appState.setIconState(.noPermission)
         }
     }
@@ -250,31 +272,61 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         window.makeKeyAndOrderFront(nil)
     }
     
-    func requestAccessibilityPermission() {
+    func requestAccessibilityPermission(source: AccessibilityGrantSource) {
         let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true]
         _ = AXIsProcessTrustedWithOptions(options as CFDictionary)
 
-        // Cancel any existing polling
-        permissionPollingTimer?.invalidate()
+        startAccessibilityPermissionPolling(source: source)
+    }
 
-        // Poll for permission granted
-        permissionPollingTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] timer in
-            let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: false]
-            let trusted = AXIsProcessTrustedWithOptions(options as CFDictionary)
+    func applicationDidBecomeActive(_ notification: Notification) {
+        checkAccessibilityPermission()
+    }
 
-            if trusted {
-                timer.invalidate()
-                self?.permissionPollingTimer = nil
-                DispatchQueue.main.async {
-                    self?.appState.hasAccessibilityPermission = true
-                    self?.appState.setIconState(.normal)
-                }
-            }
+    private func startAccessibilityPermissionPolling(source: AccessibilityGrantSource) {
+        stopAccessibilityPermissionPolling()
+
+        permissionPollingSource = source
+        permissionPollingDeadline = Date().addingTimeInterval(accessibilityPermissionPollingTimeout)
+
+        permissionPollingTimer = Timer.scheduledTimer(
+            withTimeInterval: accessibilityPermissionPollingInterval,
+            repeats: true
+        ) { [weak self] _ in
+            self?.pollAccessibilityPermission()
+        }
+
+        if let permissionPollingTimer {
+            RunLoop.main.add(permissionPollingTimer, forMode: .common)
+        }
+
+        pollAccessibilityPermission()
+    }
+
+    private func pollAccessibilityPermission() {
+        let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: false]
+        let trusted = AXIsProcessTrustedWithOptions(options as CFDictionary)
+
+        updateAccessibilityPermissionState(isTrusted: trusted, source: permissionPollingSource)
+
+        if trusted {
+            stopAccessibilityPermissionPolling()
+            return
+        }
+
+        if let permissionPollingDeadline, Date() >= permissionPollingDeadline {
+            stopAccessibilityPermissionPolling()
         }
     }
 
-    func applicationWillTerminate(_ notification: Notification) {
+    private func stopAccessibilityPermissionPolling() {
         permissionPollingTimer?.invalidate()
         permissionPollingTimer = nil
+        permissionPollingDeadline = nil
+        permissionPollingSource = nil
+    }
+
+    func applicationWillTerminate(_ notification: Notification) {
+        stopAccessibilityPermissionPolling()
     }
 }

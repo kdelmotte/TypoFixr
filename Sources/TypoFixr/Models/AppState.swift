@@ -218,6 +218,15 @@ enum AppHelpers {
             NSWorkspace.shared.open(url)
         }
     }
+
+    static func requestAccessibilityPermission(source: AccessibilityGrantSource) {
+        guard let appDelegate = NSApp.delegate as? AppDelegate else {
+            openAccessibilitySettings()
+            return
+        }
+
+        appDelegate.requestAccessibilityPermission(source: source)
+    }
 }
 
 // MARK: - Keychain Helper

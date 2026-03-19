@@ -237,6 +237,10 @@ Contributions are welcome! Please open an issue or pull request.
 
 ## Changelog
 
+### v1.3.2
+- Fixed the onboarding window layout so setup stays usable on smaller screens and the primary action remains reachable
+- Fixed Accessibility permission refresh so onboarding, Settings, and the menu bar all detect restored access without polling forever
+
 ### v1.3.1
 - Added TelemetryDeck analytics tracking for onboarding, settings, security warnings, and correction outcomes
 

@@ -6,8 +6,6 @@ struct OnboardingView: View {
 
     @State private var currentStep: OnboardingStep = .welcome
     @State private var showAPIKey = false
-    @State private var permissionTimer: Timer?
-    @State private var isPollingPermission = false
 
     private var gateState: OnboardingGateState {
         OnboardingGateState(
@@ -26,7 +24,11 @@ struct OnboardingView: View {
 
             Divider()
 
-            content
+            ScrollView {
+                content
+                    .frame(maxWidth: .infinity, alignment: .topLeading)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
 
             Divider()
 
@@ -34,12 +36,6 @@ struct OnboardingView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(TypoFixrBrandPalette.secondaryCardFill)
-        .onAppear {
-            startPermissionPolling()
-        }
-        .onDisappear {
-            stopPermissionPolling()
-        }
     }
 
     private var header: some View {
@@ -108,7 +104,7 @@ struct OnboardingView: View {
             }
         }
         .padding(28)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .frame(maxWidth: .infinity, alignment: .topLeading)
     }
 
     private var accessibilityStep: some View {
@@ -163,7 +159,7 @@ struct OnboardingView: View {
             }
         }
         .padding(28)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .frame(maxWidth: .infinity, alignment: .topLeading)
     }
 
     private var apiKeyStep: some View {
@@ -218,7 +214,7 @@ struct OnboardingView: View {
             }
         }
         .padding(28)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .frame(maxWidth: .infinity, alignment: .topLeading)
     }
 
     private var footer: some View {
@@ -307,8 +303,7 @@ struct OnboardingView: View {
             if appState.hasAccessibilityPermission {
                 advance(to: .apiKey)
             } else {
-                AppHelpers.openAccessibilitySettings()
-                startPermissionPolling()
+                AppHelpers.requestAccessibilityPermission(source: .onboarding)
             }
         case .apiKey:
             guard gateState.canContinue(from: .apiKey) else { return }
@@ -321,36 +316,6 @@ struct OnboardingView: View {
         withAnimation(.easeInOut(duration: 0.2)) {
             currentStep = step
         }
-    }
-
-    private func startPermissionPolling() {
-        guard !isPollingPermission else { return }
-        isPollingPermission = true
-
-        permissionTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { timer in
-            let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: false]
-            let trusted = AXIsProcessTrustedWithOptions(options as CFDictionary)
-            let wasTrusted = appState.hasAccessibilityPermission
-
-            DispatchQueue.main.async {
-                if trusted && !wasTrusted {
-                    TelemetryService.shared.track(.accessibilityPermissionGranted(source: .onboarding))
-                }
-                appState.hasAccessibilityPermission = trusted
-            }
-
-            if trusted {
-                timer.invalidate()
-                permissionTimer = nil
-                isPollingPermission = false
-            }
-        }
-    }
-
-    private func stopPermissionPolling() {
-        permissionTimer?.invalidate()
-        permissionTimer = nil
-        isPollingPermission = false
     }
 }
 

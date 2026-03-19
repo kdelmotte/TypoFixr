@@ -11,6 +11,8 @@ enum SettingsOpenSource: String {
 
 enum AccessibilityGrantSource: String {
     case onboarding = "onboarding"
+    case settings = "settings"
+    case menuBar = "menu_bar"
 }
 
 enum SecurityWarningKind: String {
