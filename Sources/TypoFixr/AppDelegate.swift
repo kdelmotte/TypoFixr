@@ -251,8 +251,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
 
+        let onboardingSize = NSSize(width: 640, height: 480)
         let onboardingView = OnboardingView()
             .environmentObject(appState)
+            .frame(width: onboardingSize.width, height: onboardingSize.height)
 
         let hostingController = NSHostingController(rootView: onboardingView)
 
@@ -260,9 +262,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         window.identifier = NSUserInterfaceItemIdentifier("onboarding")
         window.title = "Welcome to TypoFixr"
         window.styleMask = [.titled, .closable]
-        window.setContentSize(NSSize(width: 640, height: 560))
-        window.minSize = NSSize(width: 640, height: 560)
-        window.maxSize = NSSize(width: 640, height: 560)
+        window.setContentSize(onboardingSize)
+        window.minSize = onboardingSize
+        window.maxSize = onboardingSize
         window.center()
         window.isReleasedWhenClosed = false
 

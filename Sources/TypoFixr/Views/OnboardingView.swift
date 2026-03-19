@@ -62,8 +62,8 @@ struct OnboardingView: View {
 
             StepProgressIndicator(currentStep: currentStep)
         }
-        .padding(.horizontal, 28)
-        .padding(.vertical, 24)
+        .padding(.horizontal, 24)
+        .padding(.vertical, 20)
     }
 
     @ViewBuilder
@@ -103,7 +103,7 @@ struct OnboardingView: View {
                 }
             }
         }
-        .padding(28)
+        .padding(24)
         .frame(maxWidth: .infinity, alignment: .topLeading)
     }
 
@@ -158,7 +158,7 @@ struct OnboardingView: View {
                     .foregroundColor(.secondary)
             }
         }
-        .padding(28)
+        .padding(24)
         .frame(maxWidth: .infinity, alignment: .topLeading)
     }
 
@@ -213,7 +213,7 @@ struct OnboardingView: View {
                 OnboardingBulletRow(systemImage: "network", text: "Requests go straight to Groq from your device using your account.")
             }
         }
-        .padding(28)
+        .padding(24)
         .frame(maxWidth: .infinity, alignment: .topLeading)
     }
 
@@ -245,8 +245,8 @@ struct OnboardingView: View {
                 .controlSize(.large)
                 .disabled(isPrimaryButtonDisabled)
         }
-        .padding(.horizontal, 28)
-        .padding(.vertical, 18)
+        .padding(.horizontal, 24)
+        .padding(.vertical, 14)
     }
 
     private var primaryButtonTitle: String {

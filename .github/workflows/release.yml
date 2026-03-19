@@ -130,20 +130,9 @@ jobs:
           import os
           from PIL import Image, ImageDraw, ImageFont
 
-          width, height = 720, 460
-          image = Image.new("RGB", (width, height), "#0d1b2a")
+          width, height = 720, 440
+          image = Image.new("RGB", (width, height), "#0b1220")
           draw = ImageDraw.Draw(image)
-
-          draw.rectangle((width // 2, 0, width, height), fill="#8ee3ef")
-
-          arrow = [
-              (324, 184), (386, 184), (386, 146),
-              (446, 230), (386, 314), (386, 276), (324, 276),
-          ]
-          draw.polygon(arrow, fill="#134074")
-
-          draw.ellipse((70, 120, 290, 340), fill="#dff4ff")
-          draw.ellipse((430, 120, 650, 340), fill="#dff4ff")
 
           def load_font(size: int):
               candidates = [
@@ -161,13 +150,32 @@ jobs:
 
           title_font = load_font(36)
           caption_font = load_font(22)
-          label_font = load_font(26)
+          def rounded_rectangle(bounds, radius, fill, outline=None, outline_width=1):
+              draw.rounded_rectangle(bounds, radius=radius, fill=fill, outline=outline, width=outline_width)
 
-          draw.text((112, 24), "Install TypoFixr", font=title_font, fill="#f8fafc")
-          draw.text((64, 72), "Drag TypoFixr.app to Applications", font=caption_font, fill="#e2e8f0")
+          rounded_rectangle(
+              (36, 112, 304, 360),
+              radius=28,
+              fill="#111c2d",
+              outline="#21324b",
+              outline_width=2,
+          )
+          rounded_rectangle(
+              (416, 112, 684, 360),
+              radius=28,
+              fill="#111c2d",
+              outline="#21324b",
+              outline_width=2,
+          )
 
-          draw.text((94, 370), "TypoFixr.app", font=label_font, fill="#e2e8f0")
-          draw.text((446, 370), "Applications", font=label_font, fill="#0f172a")
+          arrow = [
+              (322, 220), (382, 220), (382, 190),
+              (442, 248), (382, 306), (382, 276), (322, 276),
+          ]
+          draw.polygon(arrow, fill="#2563eb")
+
+          draw.text((width // 2, 28), "Install TypoFixr", font=title_font, fill="#f8fafc", anchor="ma")
+          draw.text((width // 2, 78), "Drag TypoFixr.app into Applications", font=caption_font, fill="#cbd5e1", anchor="ma")
 
           image.save(os.environ["DMG_BACKGROUND_PATH"], format="PNG")
           PY

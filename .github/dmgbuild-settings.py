@@ -8,7 +8,7 @@ format = "UDZO"
 files = [application]
 symlinks = {"Applications": "/Applications"}
 
-window_rect = ((200, 160), (720, 460))
+window_rect = ((200, 160), (720, 440))
 default_view = "icon-view"
 show_toolbar = False
 show_sidebar = False
@@ -20,13 +20,13 @@ include_icon_view_settings = "auto"
 
 arrange_by = None
 grid_offset = (0, 0)
-grid_spacing = 100
+grid_spacing = 140
 scroll_position = (0, 0)
 label_pos = "bottom"
-text_size = 16
-icon_size = 128
+text_size = 14
+icon_size = 120
 
 icon_locations = {
-    app_name: (180, 240),
-    "Applications": (540, 240),
+    app_name: (180, 255),
+    "Applications": (540, 255),
 }
