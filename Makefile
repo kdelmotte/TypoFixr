@@ -9,7 +9,7 @@ APP_DOMAIN  := com.typofixr.app
 XCODE_DERIVED_DATA := .build/xcode
 XCODE_RELEASE_APP := $(XCODE_DERIVED_DATA)/Build/Products/Release/TypoFixr.app
 
-.PHONY: build release test deploy xcode-build xcode-test
+.PHONY: build release test deploy preflight-dmg xcode-build xcode-test
 
 build:
 	swift build -c debug
@@ -37,6 +37,9 @@ deploy:
 	@echo "==> Launching..."
 	open "$(APP_BUNDLE)"
 	@echo "Done. Accessibility permissions should persist across deploys."
+
+preflight-dmg:
+	./scripts/preflight_release_dmg.sh
 
 xcode-build:
 	xcodebuild -project TypoFixr.xcodeproj -scheme TypoFixr -configuration Debug build

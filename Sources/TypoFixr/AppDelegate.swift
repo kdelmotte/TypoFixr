@@ -251,20 +251,21 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
 
-        let onboardingSize = NSSize(width: 640, height: 480)
-        let onboardingView = OnboardingView()
+        let onboardingLayout = measuredOnboardingLayout()
+        let onboardingView = OnboardingView(layout: onboardingLayout)
             .environmentObject(appState)
-            .frame(width: onboardingSize.width, height: onboardingSize.height)
-
         let hostingController = NSHostingController(rootView: onboardingView)
+        if #available(macOS 13.0, *) {
+            hostingController.sizingOptions = []
+        }
 
         let window = NSWindow(contentViewController: hostingController)
         window.identifier = NSUserInterfaceItemIdentifier("onboarding")
         window.title = "Welcome to TypoFixr"
         window.styleMask = [.titled, .closable]
-        window.setContentSize(onboardingSize)
-        window.minSize = onboardingSize
-        window.maxSize = onboardingSize
+        window.setContentSize(onboardingLayout.size)
+        window.minSize = onboardingLayout.size
+        window.maxSize = onboardingLayout.size
         window.center()
         window.isReleasedWhenClosed = false
 
@@ -272,6 +273,72 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         NSApp.activate(ignoringOtherApps: true)
         window.makeKeyAndOrderFront(nil)
+    }
+
+    private func measuredOnboardingLayout() -> OnboardingWindowLayout {
+        let visibleFrame = currentVisibleFrame()
+
+        return OnboardingWindowSizer.resolveLayout(for: visibleFrame) { [weak self] step, width, usesCompactAccessibilityLayout in
+            self?.measureOnboardingStep(
+                step,
+                width: width,
+                usesCompactAccessibilityLayout: usesCompactAccessibilityLayout
+            ) ?? OnboardingWindowLayout.fallback.size.height
+        }
+    }
+
+    private func currentVisibleFrame() -> CGRect {
+        if let screen = onboardingWindow?.screen ?? NSApp.keyWindow?.screen ?? NSApp.mainWindow?.screen {
+            return screen.visibleFrame
+        }
+
+        let mouseLocation = NSEvent.mouseLocation
+        if let screen = NSScreen.screens.first(where: { $0.frame.contains(mouseLocation) }) {
+            return screen.visibleFrame
+        }
+
+        return NSScreen.main?.visibleFrame
+            ?? NSScreen.screens.first?.visibleFrame
+            ?? CGRect(origin: .zero, size: OnboardingWindowLayout.fallback.size)
+    }
+
+    private func measureOnboardingStep(
+        _ step: OnboardingStep,
+        width: CGFloat,
+        usesCompactAccessibilityLayout: Bool
+    ) -> CGFloat {
+        let snapshot = OnboardingContentSnapshot.measurement(
+            for: step,
+            usesCompactAccessibilityLayout: usesCompactAccessibilityLayout
+        )
+
+        let shell = OnboardingShell(
+            step: step,
+            snapshot: snapshot,
+            apiKeyText: .constant(snapshot.apiKey),
+            primaryButtonTitle: step.primaryButtonTitle(
+                hasAccessibilityPermission: snapshot.hasAccessibilityPermission
+            ),
+            isPrimaryButtonDisabled: step == .apiKey && snapshot.apiKeyValidationState != .valid,
+            footerHint: step.footerHint(
+                hasAccessibilityPermission: snapshot.hasAccessibilityPermission
+            ),
+            onBack: step.previous == nil ? nil : {},
+            onPrimaryAction: {},
+            onToggleAPIKeyVisibility: {},
+            fillsWindowHeight: false
+        )
+
+        let hostingController = NSHostingController(rootView: shell)
+        if #available(macOS 13.0, *) {
+            hostingController.sizingOptions = []
+        }
+
+        let measuredSize = hostingController.sizeThatFits(
+            in: CGSize(width: width, height: CGFloat.greatestFiniteMagnitude)
+        )
+
+        return measuredSize.height
     }
     
     func requestAccessibilityPermission(source: AccessibilityGrantSource) {

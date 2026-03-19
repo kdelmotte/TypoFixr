@@ -1,4 +1,5 @@
 import Foundation
+import CoreGraphics
 
 enum OnboardingStep: Int, CaseIterable, Identifiable {
     case welcome
@@ -37,12 +38,166 @@ enum OnboardingStep: Int, CaseIterable, Identifiable {
         "Step \(number) of \(Self.allCases.count)"
     }
 
+    var shortTitle: String {
+        switch self {
+        case .welcome:
+            return "Welcome"
+        case .accessibility:
+            return "Accessibility"
+        case .apiKey:
+            return "Groq Key"
+        }
+    }
+
     var previous: OnboardingStep? {
         OnboardingStep(rawValue: rawValue - 1)
     }
 
     var next: OnboardingStep? {
         OnboardingStep(rawValue: rawValue + 1)
+    }
+
+    func primaryButtonTitle(hasAccessibilityPermission: Bool) -> String {
+        switch self {
+        case .welcome:
+            return "Continue"
+        case .accessibility:
+            return hasAccessibilityPermission ? "Continue" : "Open Accessibility Settings"
+        case .apiKey:
+            return "Finish Setup"
+        }
+    }
+
+    func footerHint(hasAccessibilityPermission: Bool) -> String {
+        switch self {
+        case .welcome:
+            return "Setup takes about a minute."
+        case .accessibility:
+            return hasAccessibilityPermission
+                ? "Accessibility is ready."
+                : "We’ll keep checking while this window stays open."
+        case .apiKey:
+            return "Your key stays local in Keychain."
+        }
+    }
+}
+
+struct OnboardingContentSnapshot: Equatable {
+    let keyboardShortcutDisplayString: String
+    let hasAccessibilityPermission: Bool
+    let apiKey: String
+    let showsAPIKey: Bool
+    let usesCompactAccessibilityLayout: Bool
+
+    var apiKeyValidationState: GroqAPIKeyValidationState {
+        GroqAPIKeyValidationState(apiKey: apiKey)
+    }
+
+    static func measurement(
+        for step: OnboardingStep,
+        usesCompactAccessibilityLayout: Bool
+    ) -> OnboardingContentSnapshot {
+        switch step {
+        case .welcome:
+            return OnboardingContentSnapshot(
+                keyboardShortcutDisplayString: KeyboardShortcutConfig.defaultConfig.displayString,
+                hasAccessibilityPermission: false,
+                apiKey: "",
+                showsAPIKey: false,
+                usesCompactAccessibilityLayout: usesCompactAccessibilityLayout
+            )
+        case .accessibility:
+            return OnboardingContentSnapshot(
+                keyboardShortcutDisplayString: KeyboardShortcutConfig.defaultConfig.displayString,
+                hasAccessibilityPermission: false,
+                apiKey: "",
+                showsAPIKey: false,
+                usesCompactAccessibilityLayout: usesCompactAccessibilityLayout
+            )
+        case .apiKey:
+            return OnboardingContentSnapshot(
+                keyboardShortcutDisplayString: KeyboardShortcutConfig.defaultConfig.displayString,
+                hasAccessibilityPermission: false,
+                apiKey: "",
+                showsAPIKey: false,
+                usesCompactAccessibilityLayout: usesCompactAccessibilityLayout
+            )
+        }
+    }
+}
+
+struct OnboardingWindowLayout: Equatable {
+    let size: CGSize
+    let usesCompactAccessibilityLayout: Bool
+
+    static let fallback = OnboardingWindowLayout(
+        size: CGSize(width: 640, height: 560),
+        usesCompactAccessibilityLayout: false
+    )
+}
+
+enum OnboardingWindowSizer {
+    static let preferredWidth: CGFloat = 640
+    static let fallbackWidth: CGFloat = 680
+    static let screenMargin: CGFloat = 80
+
+    static func resolveLayout(
+        for visibleFrame: CGRect,
+        measureHeight: (OnboardingStep, CGFloat, Bool) -> CGFloat
+    ) -> OnboardingWindowLayout {
+        let maxAllowedWidth = max(0, visibleFrame.width - screenMargin)
+        let maxAllowedHeight = max(0, visibleFrame.height - screenMargin)
+
+        guard maxAllowedWidth > 0, maxAllowedHeight > 0 else {
+            return .fallback
+        }
+
+        let preferredMeasuredWidth = min(preferredWidth, maxAllowedWidth)
+        let preferredLayout = measuredLayout(
+            width: preferredMeasuredWidth,
+            usesCompactAccessibilityLayout: false,
+            measureHeight: measureHeight
+        )
+
+        if preferredLayout.size.height <= maxAllowedHeight {
+            return preferredLayout
+        }
+
+        let widenedMeasuredWidth = min(fallbackWidth, maxAllowedWidth)
+        if widenedMeasuredWidth > preferredMeasuredWidth {
+            let widenedLayout = measuredLayout(
+                width: widenedMeasuredWidth,
+                usesCompactAccessibilityLayout: false,
+                measureHeight: measureHeight
+            )
+
+            if widenedLayout.size.height <= maxAllowedHeight {
+                return widenedLayout
+            }
+        }
+
+        return measuredLayout(
+            width: max(widenedMeasuredWidth, preferredMeasuredWidth),
+            usesCompactAccessibilityLayout: true,
+            measureHeight: measureHeight
+        )
+    }
+
+    private static func measuredLayout(
+        width: CGFloat,
+        usesCompactAccessibilityLayout: Bool,
+        measureHeight: (OnboardingStep, CGFloat, Bool) -> CGFloat
+    ) -> OnboardingWindowLayout {
+        let height = ceil(
+            OnboardingStep.allCases
+                .map { measureHeight($0, width, usesCompactAccessibilityLayout) }
+                .max() ?? OnboardingWindowLayout.fallback.size.height
+        )
+
+        return OnboardingWindowLayout(
+            size: CGSize(width: width, height: height),
+            usesCompactAccessibilityLayout: usesCompactAccessibilityLayout
+        )
     }
 }
 

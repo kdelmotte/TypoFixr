@@ -66,16 +66,24 @@ struct TypoFixrMark: View {
 
 struct OnboardingCard<Content: View>: View {
     let content: Content
+    private let spacing: CGFloat
+    private let paddingAmount: CGFloat
 
-    init(@ViewBuilder content: () -> Content) {
+    init(
+        spacing: CGFloat = 16,
+        padding: CGFloat = 22,
+        @ViewBuilder content: () -> Content
+    ) {
+        self.spacing = spacing
+        self.paddingAmount = padding
         self.content = content()
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: spacing) {
             content
         }
-        .padding(22)
+        .padding(paddingAmount)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(TypoFixrBrandPalette.cardFill)
         .overlay(
