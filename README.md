@@ -237,6 +237,10 @@ Contributions are welcome! Please open an issue or pull request.
 
 ## Changelog
 
+### v1.3.4
+- Hardened DMG packaging so installer metadata no longer collides with stale mounted volumes
+- Simplified the installer styling to a calmer, more reliable drag-to-Applications window
+
 ### v1.3.3
 - Tightened the onboarding window sizing and spacing so the setup flow stays compact in the shipped app
 - Cleaned up the DMG installer layout so Finder labels and icons no longer fight the background artwork
