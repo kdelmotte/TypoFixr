@@ -4,7 +4,7 @@ Use `kdelmotte/TypoFixr`, its existing app identity `com.typofixr.app`, and the 
 
 ## Version and verification
 
-Update the version/build in `Sources/TypoFixr/Info.plist` and every Xcode app/test configuration. Version 1.3.7 uses build 2. Add notes at `docs/releases/v<version>.md`, update the README changelog and test plan, and run:
+Update the version/build in `Sources/TypoFixr/Info.plist` and every Xcode app/test configuration. Version 1.3.7 uses build 3. Add notes at `docs/releases/v<version>.md`, update the README changelog and test plan, and run:
 
 ```bash
 bash scripts/validate_release.sh v1.3.7
@@ -13,7 +13,15 @@ make test
 make deploy
 ```
 
-`make deploy` builds and verifies before replacing `~/Applications/TypoFixr.app`, signs with `TypoFixrDev`, and preserves onboarding and shortcuts. `make preflight-dmg` checks the local installer flow with the same preferences. Development builds are not distribution artifacts.
+`make deploy` builds and verifies before replacing `~/Applications/TypoFixr.app`, signs with `TypoFixrDev`, and preserves onboarding and shortcuts. `make preflight-dmg` checks the local installer flow with the same preferences. Development builds are not distribution artifacts. If replacing a Developer ID build already installed in `/Applications`, keep the same certificate and location:
+
+```bash
+make deploy APP_BUNDLE=/Applications/TypoFixr.app \
+  CERT_NAME="Developer ID Application: <name> (<team>)" \
+  CODE_SIGN_FLAGS="--options runtime --timestamp"
+```
+
+A change of signing identity can require the user to reauthorize Accessibility even if the old entry is enabled. Never reset the user’s permissions or preferences to hide that mismatch. The app should reopen the missing setup step and display a visible permission icon.
 
 For editing changes, run live selection/replacement/undo and clipboard checks in the reported app. Automated tests and native/WebKit fixtures do not prove compatibility with every third-party editor. Record tested coverage and limits in the notes.
 

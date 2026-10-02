@@ -59,8 +59,8 @@ Splitting order: multi-line lists, paragraphs, sentences, then clauses. `chunkin
 
 ## UI and persistence
 
-- First launch shows onboarding; completion creates the menu bar and Settings. Later launches show the menu bar only.
-- Call `NSApp.setActivationPolicy(.accessory)` before menu-bar setup.
+- First launch shows onboarding; completion creates the menu bar and Settings. Later launches keep the menu bar and resume Accessibility or API Key setup if a prerequisite is missing. Use an explicit completion callback during recovery because the saved onboarding flag is already true.
+- Call `NSApp.setActivationPolicy(.accessory)` before menu-bar setup. Every icon state must have a non-nil template image; use `TypoFixrBranding.menuBarImage` with its drawn fallback. Refresh process trust before opening the menu and before a correction.
 - `AppDelegate` manages Settings/onboarding windows; shortcut recording uses a local event monitor and Escape cancels it.
 - `HUDService.showLoading` stays visible until a result replaces it. Keep HUD windows from stealing the destination's focus.
 - Store/invalidate timers. `NWPathMonitor` must be recreated after cancellation.

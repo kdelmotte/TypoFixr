@@ -127,3 +127,35 @@ final class AppStateTests: XCTestCase {
         XCTAssertEqual(try environment.credentials.load(key: "groq_api_key"), appState.groqApiKey)
     }
 }
+
+
+extension AppStateTests {
+    func testPermissionRecoveryClearsStaleWarningWithoutResettingSetup() {
+        appState.hasCompletedOnboarding = true
+        appState.groqApiKey = "gsk_" + String(repeating: "a", count: 52)
+        let savedKey = appState.groqApiKey
+        appState.lastError = "Accessibility permission required"
+        appState.setIconState(.noPermission)
+        appState.updateAccessibilityPermission(isTrusted: true, isConnected: true)
+        XCTAssertTrue(appState.hasAccessibilityPermission)
+        XCTAssertTrue(appState.hasCompletedOnboarding)
+        XCTAssertEqual(appState.groqApiKey, savedKey)
+        XCTAssertNil(appState.lastError)
+        XCTAssertEqual(appState.iconState, .normal)
+    }
+
+    func testPermissionRecoveryPreservesOtherErrorsAndOfflineState() {
+        appState.lastError = "No internet connection"
+        appState.setIconState(.noPermission)
+        appState.updateAccessibilityPermission(isTrusted: true, isConnected: false)
+        XCTAssertEqual(appState.lastError, "No internet connection")
+        XCTAssertEqual(appState.iconState, .offline)
+    }
+
+    func testRevokedPermissionUpdatesPreviouslyTrustedState() {
+        appState.hasAccessibilityPermission = true
+        appState.updateAccessibilityPermission(isTrusted: false, isConnected: true)
+        XCTAssertFalse(appState.hasAccessibilityPermission)
+        XCTAssertEqual(appState.iconState, .noPermission)
+    }
+}

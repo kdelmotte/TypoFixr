@@ -3,13 +3,24 @@ import SwiftUI
 import Combine
 
 // MARK: - Menu Bar Icon State
-enum MenuBarIconState {
+enum MenuBarIconState: CaseIterable {
     case normal
     case processing
     case success
     case error
     case noPermission
     case offline
+
+    var statusDescription: String {
+        switch self {
+        case .normal: return "Ready"
+        case .processing: return "Processing"
+        case .success: return "Success"
+        case .error: return "Error"
+        case .noPermission: return "Accessibility Permission Required"
+        case .offline: return "Offline"
+        }
+    }
 }
 
 class AppState: ObservableObject {
@@ -148,6 +159,17 @@ class AppState: ObservableObject {
     func clearHistory() {
         correctionHistory.removeAll()
         databaseManager.clearCorrectionHistory()
+    }
+
+    /// Apply the current process's trust result, not a saved onboarding flag.
+    func updateAccessibilityPermission(isTrusted: Bool, isConnected: Bool) {
+        hasAccessibilityPermission = isTrusted
+        if isTrusted {
+            if lastError == "Accessibility permission required" { lastError = nil }
+            if iconState == .noPermission { setIconState(isConnected ? .normal : .offline) }
+        } else {
+            setIconState(.noPermission)
+        }
     }
 
     // MARK: - Icon State Management

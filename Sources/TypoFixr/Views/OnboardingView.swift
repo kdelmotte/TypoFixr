@@ -5,12 +5,17 @@ struct OnboardingView: View {
     @Environment(\.dismiss) var dismiss
 
     let layout: OnboardingWindowLayout
+    let onComplete: () -> Void
 
     @State private var currentStep: OnboardingStep = .welcome
     @State private var showAPIKey = false
 
-    init(layout: OnboardingWindowLayout = .fallback) {
+    init(layout: OnboardingWindowLayout = .fallback,
+         initialStep: OnboardingStep = .welcome,
+         onComplete: @escaping () -> Void = {}) {
         self.layout = layout
+        self.onComplete = onComplete
+        _currentStep = State(initialValue: initialStep)
     }
 
     private var snapshot: OnboardingContentSnapshot {
@@ -79,6 +84,7 @@ struct OnboardingView: View {
         case .apiKey:
             guard gateState.canContinue(from: .apiKey) else { return }
             appState.hasCompletedOnboarding = true
+            onComplete()
             dismiss()
         }
     }
@@ -242,7 +248,7 @@ struct OnboardingShell: View {
                 }
 
                 if snapshot.usesCompactAccessibilityLayout && !snapshot.hasAccessibilityPermission {
-                    Label("Tip: if TypoFixr already appears in the list, toggling it off and on again usually resolves stale permission state.", systemImage: "lightbulb")
+                    Label("Already enabled but still blocked? Turn TypoFixr off and on. If it stays blocked, remove its entry with −, add the copy you’re running with +, enable it, then reopen TypoFixr.", systemImage: "lightbulb")
                         .font(.caption)
                         .foregroundColor(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -270,7 +276,7 @@ struct OnboardingShell: View {
             }
 
             if !snapshot.usesCompactAccessibilityLayout && !snapshot.hasAccessibilityPermission {
-                Label("Tip: if TypoFixr already appears in the list, toggling it off and on again usually resolves stale permission state.", systemImage: "lightbulb")
+                Label("Already enabled but still blocked? Turn TypoFixr off and on. If it stays blocked, remove its entry with −, add the copy you’re running with +, enable it, then reopen TypoFixr.", systemImage: "lightbulb")
                     .font(.caption)
                     .foregroundColor(.secondary)
                     .fixedSize(horizontal: false, vertical: true)

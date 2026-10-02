@@ -183,3 +183,38 @@ final class OnboardingFlowTests: XCTestCase {
         ).height
     }
 }
+
+
+extension OnboardingFlowTests {
+    func testFirstLaunchStartsAtWelcomeEvenWithAnExistingKey() {
+        let gate = OnboardingGateState(hasAccessibilityPermission: true, apiKeyValidationState: .valid)
+        XCTAssertEqual(gate.initialStep(hasCompletedOnboarding: false), .welcome)
+    }
+
+    func testUpgradeWithMissingPermissionResumesAccessibility() {
+        let gate = OnboardingGateState(hasAccessibilityPermission: false, apiKeyValidationState: .valid)
+        XCTAssertEqual(gate.initialStep(hasCompletedOnboarding: true), .accessibility)
+    }
+
+    func testUpgradeWithBothPrerequisitesMissingStartsWithPermission() {
+        let gate = OnboardingGateState(hasAccessibilityPermission: false, apiKeyValidationState: .empty)
+        XCTAssertEqual(gate.initialStep(hasCompletedOnboarding: true), .accessibility)
+    }
+
+    func testUpgradeWithMissingKeyResumesAPIKeyStep() {
+        for state in [GroqAPIKeyValidationState.empty, .invalidFormat] {
+            let gate = OnboardingGateState(hasAccessibilityPermission: true, apiKeyValidationState: state)
+            XCTAssertEqual(gate.initialStep(hasCompletedOnboarding: true), .apiKey)
+        }
+    }
+
+    func testCompletedSetupWithPermissionAndKeySkipsOnboarding() {
+        let gate = OnboardingGateState(hasAccessibilityPermission: true, apiKeyValidationState: .valid)
+        XCTAssertNil(gate.initialStep(hasCompletedOnboarding: true))
+    }
+
+    func testPermissionRevokedAtFinalStepPreventsFinishingSetup() {
+        let gate = OnboardingGateState(hasAccessibilityPermission: false, apiKeyValidationState: .valid)
+        XCTAssertFalse(gate.canContinue(from: .apiKey))
+    }
+}

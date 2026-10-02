@@ -209,9 +209,11 @@ make deploy
 ### "Permission Required" message
 
 1. Open System Settings > Privacy & Security > Accessibility
-2. Find TypoFixr in the list
-3. Toggle it off and on again
-4. Restart TypoFixr
+2. Find TypoFixr in the list and toggle it off and on
+3. If it remains blocked, remove that entry with **−**, add the exact installed copy with **+**, and enable it
+4. Quit and reopen that copy of TypoFixr
+
+Development and Developer ID builds have different signing identities. An enabled entry for an older build may not authorize its replacement. Setup resumes at Accessibility when the running app lacks access; it keeps your saved key and preferences. The DMG’s Applications shortcut installs to `/Applications`; a development copy may also exist in `~/Applications`. Run only the intended copy.
 
 ### Shortcut not working
 
@@ -256,6 +258,9 @@ Contributions are welcome! Please open an issue or pull request.
 ## Changelog
 
 ### v1.3.7
+- Restore visible menu-bar icons in every state, with a fallback when a system symbol is unavailable
+- Resume setup at Accessibility or API Key when an installed update still needs access; keep saved preferences and credentials
+- Refresh permission status when opening the menu or using the shortcut, and clear stale permission errors after access is restored
 - Verify the copied selection before replacement and stop stale corrections after destination changes or user interaction
 - Preserve clipboard items and representations, including rich text, images, and file URLs
 - Keep clipboard compatibility when Accessibility selection metadata is absent; prevent overlapping corrections

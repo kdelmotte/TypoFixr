@@ -78,26 +78,18 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         checkAccessibilityPermission()
 
-        // Check if onboarding is needed
-        if !appState.hasCompletedOnboarding {
-            // First launch: show only onboarding, no menu bar yet
-            showOnboarding()
+        let initialStep = OnboardingGateState(
+            hasAccessibilityPermission: appState.hasAccessibilityPermission,
+            apiKeyValidationState: GroqAPIKeyValidationState(apiKey: appState.groqApiKey)
+        ).initialStep(hasCompletedOnboarding: appState.hasCompletedOnboarding)
 
-            // Watch for onboarding completion
-            appState.$hasCompletedOnboarding
-                .filter { $0 }
-                .first()
-                .sink { [weak self] _ in
-                    self?.onOnboardingCompleted()
-                }
-                .store(in: &cancellables)
-        } else {
-            // Already onboarded: set up menu bar and register hotkey
-            DispatchQueue.main.async { [self] in
-                setupMenuBar()
-                checkAccessibilityPermission()
-                hotkeyService.registerHotkey()
-            }
+        // Returning users retain their menu and settings while repairing setup.
+        if appState.hasCompletedOnboarding {
+            setupMenuBar()
+            hotkeyService.registerHotkey()
+        }
+        if let initialStep {
+            showOnboarding(initialStep: initialStep)
         }
     }
 
@@ -105,6 +97,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         DispatchQueue.main.async { [self] in
             // Close onboarding window
             onboardingWindow?.close()
+            onboardingWindow = nil
 
             // Set up menu bar
             setupMenuBar()
@@ -119,14 +112,18 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
     
     private func setupMenuBar() {
+        guard statusItem == nil else {
+            updateMenuBarIcon()
+            return
+        }
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
 
         if let button = statusItem.button {
-            button.image = TypoFixrBranding.menuBarTemplateImage()
             button.action = #selector(togglePopover)
             button.target = self
         }
-        
+        updateMenuBarIcon()
+
         popover = NSPopover()
         popover.contentSize = NSSize(width: 320, height: 400)
         popover.behavior = .transient
@@ -141,6 +138,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             if popover.isShown {
                 popover.performClose(nil)
             } else {
+                checkAccessibilityPermission()
                 popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
                 popover.contentViewController?.view.window?.makeKey()
             }
@@ -158,43 +156,30 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         source: AccessibilityGrantSource? = nil
     ) {
         let wasTrusted = appState.hasAccessibilityPermission
-        appState.hasAccessibilityPermission = isTrusted
+        appState.updateAccessibilityPermission(
+            isTrusted: isTrusted,
+            isConnected: NetworkMonitor.shared.isConnected
+        )
 
         if isTrusted {
             if !wasTrusted, let source {
                 TelemetryService.shared.track(.accessibilityPermissionGranted(source: source))
             }
 
-            if appState.iconState == .noPermission {
-                appState.setIconState(NetworkMonitor.shared.isConnected ? .normal : .offline)
-            }
-        } else {
-            appState.setIconState(.noPermission)
         }
     }
     
     func updateMenuBarIcon() {
         guard let button = statusItem?.button else { return }
 
-        let config = NSImage.SymbolConfiguration(pointSize: 16, weight: .medium)
-
-        switch appState.iconState {
-        case .processing:
-            button.image = NSImage(systemSymbolName: "arrow.trianglehead.2.clockwise.rotate.90", accessibilityDescription: "Processing")?.withSymbolConfiguration(config)
-        case .success:
-            button.image = NSImage(systemSymbolName: "checkmark.circle.fill", accessibilityDescription: "Success")?.withSymbolConfiguration(config)
-        case .error:
-            button.image = NSImage(systemSymbolName: "xmark.circle.fill", accessibilityDescription: "Error")?.withSymbolConfiguration(config)
-        case .noPermission:
-            button.image = NSImage(systemSymbolName: "keyboard.badge.exclamationmark", accessibilityDescription: "Permission Required")?.withSymbolConfiguration(config)
-        case .offline:
-            button.image = NSImage(systemSymbolName: "wifi.slash", accessibilityDescription: "Offline")?.withSymbolConfiguration(config)
-        case .normal:
-            button.image = TypoFixrBranding.menuBarTemplateImage(pointSize: 16)
-        }
+        button.image = TypoFixrBranding.menuBarImage(for: appState.iconState)
+        let description = "\(AppHelpers.productName): \(appState.iconState.statusDescription)"
+        button.toolTip = description
+        button.setAccessibilityLabel(description)
     }
-    
+
     private func triggerCorrection() {
+        checkAccessibilityPermission()
         Task {
             await textCorrectionService.performCorrection()
         }
@@ -246,14 +231,16 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    private func showOnboarding() {
+    private func showOnboarding(initialStep: OnboardingStep = .welcome) {
         if let window = onboardingWindow, window.isVisible {
             window.makeKeyAndOrderFront(nil)
             return
         }
 
         let onboardingLayout = measuredOnboardingLayout()
-        let onboardingView = OnboardingView(layout: onboardingLayout)
+        let onboardingView = OnboardingView(layout: onboardingLayout, initialStep: initialStep) { [weak self] in
+            self?.onOnboardingCompleted()
+        }
             .environmentObject(appState)
         let hostingController = NSHostingController(rootView: onboardingView)
         if #available(macOS 13.0, *) {
@@ -274,6 +261,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         NSApp.activate(ignoringOtherApps: true)
         window.makeKeyAndOrderFront(nil)
+        startAccessibilityPermissionPolling(source: .onboarding)
     }
 
     private func measuredOnboardingLayout() -> OnboardingWindowLayout {
@@ -346,6 +334,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true]
         _ = AXIsProcessTrustedWithOptions(options as CFDictionary)
 
+        // A stale grant can prevent the AX prompt appearing. The button still
+        // needs to open the panel so the user can repair the existing entry.
+        AppHelpers.openAccessibilitySettings()
         startAccessibilityPermissionPolling(source: source)
     }
 
@@ -384,7 +375,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
 
-        if let permissionPollingDeadline, Date() >= permissionPollingDeadline {
+        if let permissionPollingDeadline, Date() >= permissionPollingDeadline,
+           onboardingWindow?.isVisible != true {
             stopAccessibilityPermissionPolling()
         }
     }

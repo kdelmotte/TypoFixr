@@ -1,5 +1,6 @@
 import XCTest
 import SwiftUI
+import AppKit
 @testable import TypoFixr
 
 final class HUDViewTests: XCTestCase {
@@ -92,5 +93,43 @@ final class HUDViewTests: XCTestCase {
         let subtitle = "Grant Accessibility access"
         XCTAssertTrue(subtitle.contains("Accessibility"),
             "Permission message should mention Accessibility")
+    }
+}
+
+
+final class MenuBarIconTests: XCTestCase {
+    @MainActor
+    func testEveryMenuBarStateRendersVisibleTemplatePixels() throws {
+        for state in MenuBarIconState.allCases {
+            try assertVisible(TypoFixrBranding.menuBarImage(for: state), state: state)
+        }
+    }
+
+    @MainActor
+    func testUnavailableSymbolsFallBackToVisibleBranding() throws {
+        for state in MenuBarIconState.allCases {
+            let image = TypoFixrBranding.menuBarImage(for: state, symbolProvider: { _, _ in nil })
+            try assertVisible(image, state: state)
+        }
+    }
+
+    @MainActor
+    private func assertVisible(_ image: NSImage, state: MenuBarIconState) throws {
+        XCTAssertTrue(image.isTemplate, "\(state) must adapt to the menu bar appearance")
+        let bitmap = try XCTUnwrap(NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: 48, pixelsHigh: 48,
+            bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false,
+            colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0))
+        let context = try XCTUnwrap(NSGraphicsContext(bitmapImageRep: bitmap))
+        NSGraphicsContext.saveGraphicsState()
+        defer { NSGraphicsContext.restoreGraphicsState() }
+        NSGraphicsContext.current = context
+        NSColor.clear.setFill()
+        NSRect(x: 0, y: 0, width: 48, height: 48).fill(using: .copy)
+        image.draw(in: NSRect(x: 4, y: 4, width: 40, height: 40))
+        context.flushGraphics()
+        let visible = (0..<48).contains { y in
+            (0..<48).contains { x in (bitmap.colorAt(x: x, y: y)?.alphaComponent ?? 0) > 0.05 }
+        }
+        XCTAssertTrue(visible, "\(state) rendered a blank menu bar image")
     }
 }

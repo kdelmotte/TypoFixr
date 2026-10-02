@@ -277,6 +277,14 @@ struct OnboardingGateState {
     let hasAccessibilityPermission: Bool
     let apiKeyValidationState: GroqAPIKeyValidationState
 
+    /// Keep completed setup, but reopen the step that the current app still needs.
+    func initialStep(hasCompletedOnboarding: Bool) -> OnboardingStep? {
+        if !hasCompletedOnboarding { return .welcome }
+        if !hasAccessibilityPermission { return .accessibility }
+        if apiKeyValidationState != .valid { return .apiKey }
+        return nil
+    }
+
     func canContinue(from step: OnboardingStep) -> Bool {
         switch step {
         case .welcome:
@@ -284,7 +292,7 @@ struct OnboardingGateState {
         case .accessibility:
             return hasAccessibilityPermission
         case .apiKey:
-            return apiKeyValidationState == .valid
+            return hasAccessibilityPermission && apiKeyValidationState == .valid
         }
     }
 }

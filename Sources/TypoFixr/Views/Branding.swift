@@ -105,6 +105,30 @@ struct CheckmarkShape: Shape {
 }
 
 enum TypoFixrBranding {
+    /// Every state has a drawn fallback if a symbol is unavailable on this OS.
+    static func menuBarImage(
+        for state: MenuBarIconState,
+        pointSize: CGFloat = 16,
+        symbolProvider: (String, String) -> NSImage? = {
+            NSImage(systemSymbolName: $0, accessibilityDescription: $1)
+        }
+    ) -> NSImage {
+        let symbolName: String?
+        switch state {
+        case .normal: symbolName = nil
+        case .processing: symbolName = "arrow.triangle.2.circlepath"
+        case .success: symbolName = "checkmark.circle.fill"
+        case .error: symbolName = "xmark.circle.fill"
+        case .noPermission: symbolName = "exclamationmark.triangle.fill"
+        case .offline: symbolName = "wifi.slash"
+        }
+        let config = NSImage.SymbolConfiguration(pointSize: pointSize, weight: .medium)
+        let symbol = symbolName.flatMap { symbolProvider($0, state.statusDescription) }
+        let image = symbol?.withSymbolConfiguration(config) ?? menuBarTemplateImage(pointSize: pointSize)
+        image.isTemplate = true
+        return image
+    }
+
     static func menuBarTemplateImage(pointSize: CGFloat = 18) -> NSImage {
         let size = NSSize(width: pointSize, height: pointSize)
         let image = NSImage(size: size)

@@ -4,8 +4,9 @@ This document defines acceptance criteria, not a claim that every listed app or 
 
 ## 1.3.7 verification record
 
-- Automated suite: 232 tests passed in both Swift Package Manager and the Xcode app test host during release preparation. The suite uses isolated settings, an in-memory database, in-memory credentials, and named test pasteboards.
-- Release artifact: the universal 1.3.7 (build 2) app and DMG passed Developer ID signature, Apple notarization, stapling, and Gatekeeper checks. The mounted DMG contains the expected `com.typofixr.app` binary and Applications link.
+- Automated suite: 243 tests passed in both Swift Package Manager and the Xcode app test host during release preparation. The suite uses isolated settings, an in-memory database, in-memory credentials, and named test pasteboards.
+- Release artifact: the universal 1.3.7 (build 3) app and DMG passed Developer ID signature, Apple notarization, stapling, and Gatekeeper checks. The mounted DMG contains the expected `com.typofixr.app` binary and Applications link.
+- Local deployment: `make build` passed; `make deploy` built and signed successfully, but macOS blocked replacing the existing `/Applications` copy. Finder installation and live permission recovery require confirmation.
 - Legacy credential compatibility: an isolated temporary macOS Keychain confirmed that an exact empty-service query finds a record originally saved without a service. Only dummy test data was used.
 - Live clipboard checks: explicit selection and cursor-based paragraph fallback passed in separate AppKit and WebKit test editors, with AX selection metadata deliberately unavailable. All four cases restored the original clipboard.
 - A direct Codex shortcut/API/undo run has not been recorded. The test editors do not establish compatibility with every application below.
@@ -15,6 +16,9 @@ This document defines acceptance criteria, not a claim that every listed app or 
 
 | Scenario | Expected behavior | Automated coverage |
 | --- | --- | --- |
+| Missing status symbol | All six menu-bar states still render visible template pixels | `MenuBarIconTests` |
+| Upgrade with saved onboarding but missing permission/key | Resume the missing step; keep saved settings and key | `OnboardingFlowTests`, `AppStateTests` |
+| Permission granted/revoked after launch | Refresh state, clear stale permission error, preserve other errors | `AppStateTests` |
 | AX selection metadata unavailable | Copy/select/paste still works | `ClipboardTextEditorTests` |
 | Copy arrives late or does nothing | Wait for the copy; never use stale clipboard text | `ClipboardTextEditorTests` |
 | App, field, range, or copied text changes | Stop before replacement | `ClipboardTextEditorTests`, `TextSelectionFlowTests` |

@@ -3,6 +3,7 @@ DEVELOPER_DIR := /Applications/Xcode.app/Contents/Developer
 export DEVELOPER_DIR
 
 CERT_NAME   := TypoFixrDev
+CODE_SIGN_FLAGS :=
 APP_BUNDLE  := $(HOME)/Applications/TypoFixr.app
 APP_BINARY  := $(APP_BUNDLE)/Contents/MacOS/TypoFixr
 APP_DOMAIN  := com.typofixr.app
@@ -24,7 +25,7 @@ deploy:
 	@echo "==> Building app bundle..."
 	$(DEVELOPER_DIR)/usr/bin/xcodebuild -project TypoFixr.xcodeproj -scheme TypoFixr -configuration Release -derivedDataPath "$(XCODE_DERIVED_DATA)" CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO build
 	@echo "==> Signing with $(CERT_NAME)..."
-	codesign --force --deep --sign "$(CERT_NAME)" "$(XCODE_RELEASE_APP)"
+	codesign --force --deep $(CODE_SIGN_FLAGS) --sign "$(CERT_NAME)" "$(XCODE_RELEASE_APP)"
 	codesign --verify --deep --strict "$(XCODE_RELEASE_APP)"
 	@echo "==> Stopping running instance..."
 	pkill -f "$(APP_BINARY)" || true
@@ -34,7 +35,7 @@ deploy:
 	ditto "$(XCODE_RELEASE_APP)" "$(APP_BUNDLE)"
 	@echo "==> Launching..."
 	open "$(APP_BUNDLE)"
-	@echo "Done. Onboarding, shortcuts, and Accessibility permissions are preserved."
+	@echo "Done. Preferences preserved. Accessibility access depends on the signing identity."
 
 preflight-dmg:
 	./scripts/preflight_release_dmg.sh
