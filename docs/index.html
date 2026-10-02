@@ -31,7 +31,7 @@
       <a href="https://github.com/kdelmotte/TypoFixr/releases/latest/download/TypoFixr.dmg" class="btn-download is-disabled" data-download-cta aria-disabled="true">Checking for latest DMG…</a>
       <p class="hero-meta">Signed &amp; notarized DMG &middot; Requires macOS 13+ &middot; Bring your own Groq API key</p>
       <p class="hero-meta">After download: open the DMG and drag TypoFixr to Applications before first launch.</p>
-      <p class="download-status" data-download-status>First signed release is not published yet. This button will turn into a direct DMG download automatically once the notarized installer exists.</p>
+      <p class="download-status" data-download-status>Checking the latest signed and notarized installer.</p>
     </div>
   </header>
 
@@ -51,7 +51,7 @@
         </article>
         <article class="feature-card">
           <h3>Works from the menu bar</h3>
-          <p>No Dock clutter. Trigger it with a shortcut and keep typing in the app you already use.</p>
+          <p>No Dock clutter. Trigger it with a shortcut and leave the field unchanged while the correction runs.</p>
         </article>
         <article class="feature-card">
           <h3>Undo-friendly</h3>
@@ -110,7 +110,7 @@
         <ul class="check-list">
           <li>Your API key is stored locally in macOS Keychain.</li>
           <li>Text is only accessed when you trigger a correction.</li>
-          <li>Correction history is stored locally on your Mac.</li>
+          <li>Original and corrected text are stored locally in correction history; clear it in Settings.</li>
           <li>TypoFixr does not require an app account.</li>
         </ul>
       </div>
@@ -173,7 +173,7 @@
           : null;
 
         if (!dmg || !dmg.browser_download_url) {
-          setUnavailable("The website is live, but the first signed DMG has not been published yet.");
+          setUnavailable("The latest release does not include a DMG. Check the GitHub releases page for available downloads.");
           return;
         }
 

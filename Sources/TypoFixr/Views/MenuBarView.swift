@@ -34,7 +34,7 @@ struct MenuBarView: View {
             TypoFixrMark(size: 34)
             
             VStack(alignment: .leading, spacing: 2) {
-                Text("TypoFixr")
+                Text(AppHelpers.productName)
                     .font(.headline)
                 
                 Text("Press \(appState.keyboardShortcut.displayString) to instantly fix text")
@@ -125,7 +125,7 @@ struct MenuBarView: View {
             }
             
             // Stats
-            let stats = DatabaseManager.shared.getStatistics()
+            let stats = appState.databaseManager.getStatistics()
             HStack {
                 StatBadge(label: "Today", value: "\(stats.correctionsToday)")
                 StatBadge(label: "This Month", value: "\(stats.correctionsThisMonth)")
@@ -143,7 +143,9 @@ struct MenuBarView: View {
             }
             
             MenuButton(title: "Send Feedback", systemImage: "envelope") {
-                if let url = URL(string: "mailto:\(AppHelpers.feedbackEmail)?subject=TypoFixr%20Feedback") {
+                let subject = "\(AppHelpers.productName) Feedback"
+                let encodedSubject = subject.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
+                if let url = URL(string: "mailto:\(AppHelpers.feedbackEmail)?subject=\(encodedSubject)") {
                     openURL(url)
                 }
             }
@@ -151,7 +153,7 @@ struct MenuBarView: View {
             Divider()
                 .padding(.vertical, 4)
             
-            MenuButton(title: "Quit TypoFixr", systemImage: "power") {
+            MenuButton(title: "Quit \(AppHelpers.productName)", systemImage: "power") {
                 NSApplication.shared.terminate(nil)
             }
         }
@@ -213,12 +215,12 @@ struct CorrectionRow: View {
     }
 
     private func sendFeedback() {
-        let subject = "TypoFixr Correction Feedback"
+        let subject = "\(AppHelpers.productName) Correction Feedback"
         let body = """
         Original text:
         \(correction.originalText)
 
-        TypoFixr changed it to:
+        \(AppHelpers.productName) changed it to:
         \(correction.correctedText)
 
         What I expected instead:

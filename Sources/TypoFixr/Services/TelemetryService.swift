@@ -37,6 +37,10 @@ enum CorrectionFailureReason: String {
     case outputTooLong = "output_too_long"
     case aiRefused = "ai_refused"
     case unexpected = "unexpected"
+    case destinationChanged = "destination_changed"
+    case selectionUnavailable = "selection_unavailable"
+    case clipboardUnavailable = "clipboard_unavailable"
+    case cancelled = "cancelled"
 
     init(apiError: GroqService.APIError) {
         switch apiError {

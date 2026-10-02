@@ -18,7 +18,7 @@ class AppState: ObservableObject {
     @Published var hasCompletedOnboarding: Bool {
         didSet {
             guard oldValue != hasCompletedOnboarding else { return }
-            UserDefaults.standard.set(hasCompletedOnboarding, forKey: "hasCompletedOnboarding")
+            defaults.set(hasCompletedOnboarding, forKey: "hasCompletedOnboarding")
             if hasCompletedOnboarding {
                 TelemetryService.shared.track(.onboardingCompleted)
             }
@@ -50,14 +50,14 @@ class AppState: ObservableObject {
     }
     @Published var languagePreference: String {
         didSet {
-            UserDefaults.standard.set(languagePreference, forKey: "languagePreference")
+            defaults.set(languagePreference, forKey: "languagePreference")
         }
     }
     
     // MARK: - Security & Privacy Settings
     @Published var securityWarningsEnabled: Bool {
         didSet {
-            UserDefaults.standard.set(securityWarningsEnabled, forKey: "securityWarningsEnabled")
+            defaults.set(securityWarningsEnabled, forKey: "securityWarningsEnabled")
         }
     }
     
@@ -74,19 +74,26 @@ class AppState: ObservableObject {
     }
 
     // MARK: - Database
-    let databaseManager = DatabaseManager.shared
+    let databaseManager: DatabaseManager
+    private let defaults: UserDefaults
+    private let credentials: any CredentialStore
     
     // MARK: - Initialization
-    init() {
+    init(defaults: UserDefaults = .standard,
+         databaseManager: DatabaseManager = .shared,
+         credentials: any CredentialStore = KeychainStore.shared) {
+        self.defaults = defaults
+        self.databaseManager = databaseManager
+        self.credentials = credentials
         // Load persisted values
-        self.hasCompletedOnboarding = UserDefaults.standard.bool(forKey: "hasCompletedOnboarding")
-        self.languagePreference = UserDefaults.standard.string(forKey: "languagePreference") ?? "auto"
+        self.hasCompletedOnboarding = defaults.bool(forKey: "hasCompletedOnboarding")
+        self.languagePreference = defaults.string(forKey: "languagePreference") ?? "auto"
         
         // Load security & privacy settings
-        self.securityWarningsEnabled = UserDefaults.standard.object(forKey: "securityWarningsEnabled") as? Bool ?? true
+        self.securityWarningsEnabled = defaults.object(forKey: "securityWarningsEnabled") as? Bool ?? true
         
         // Load shortcut
-        if let data = UserDefaults.standard.data(forKey: "keyboardShortcut"),
+        if let data = defaults.data(forKey: "keyboardShortcut"),
            let shortcut = try? JSONDecoder().decode(KeyboardShortcutConfig.self, from: data) {
             self.keyboardShortcut = shortcut
         } else {
@@ -94,12 +101,22 @@ class AppState: ObservableObject {
         }
         
         // Load API key from Keychain, but discard obvious placeholder/example values.
-        let persistedGroqAPIKey = KeychainHelper.load(key: "groq_api_key")
+        let persistedGroqAPIKey: String?
+        var credentialError: Error?
+        do { persistedGroqAPIKey = try credentials.load(key: "groq_api_key") }
+        catch { persistedGroqAPIKey = nil; credentialError = error }
         let sanitizedGroqAPIKey = GroqAPIKeyValidationState.sanitizedPersistedAPIKey(persistedGroqAPIKey)
         self.groqApiKey = sanitizedGroqAPIKey
+        if let credentialError { lastError = credentialError.localizedDescription }
 
         if (persistedGroqAPIKey ?? "") != sanitizedGroqAPIKey {
-            KeychainHelper.delete(key: "groq_api_key")
+            do {
+                if sanitizedGroqAPIKey.isEmpty {
+                    try credentials.delete(key: "groq_api_key")
+                } else {
+                    try credentials.save(key: "groq_api_key", value: sanitizedGroqAPIKey)
+                }
+            } catch { lastError = error.localizedDescription }
         }
 
         // Load recent history from database
@@ -150,18 +167,20 @@ class AppState: ObservableObject {
     // MARK: - Persistence Helpers
     private func saveShortcut() {
         if let data = try? JSONEncoder().encode(keyboardShortcut) {
-            UserDefaults.standard.set(data, forKey: "keyboardShortcut")
+            defaults.set(data, forKey: "keyboardShortcut")
         }
     }
     
     private func saveApiKey() {
         let trimmedApiKey = GroqAPIKeyValidationState.trimmed(groqApiKey)
 
-        if trimmedApiKey.isEmpty {
-            KeychainHelper.delete(key: "groq_api_key")
-        } else {
-            KeychainHelper.save(key: "groq_api_key", value: trimmedApiKey)
-        }
+        do {
+            if trimmedApiKey.isEmpty {
+                try credentials.delete(key: "groq_api_key")
+            } else {
+                try credentials.save(key: "groq_api_key", value: trimmedApiKey)
+            }
+        } catch { lastError = error.localizedDescription }
     }
 }
 
@@ -211,6 +230,11 @@ struct KeyboardShortcutConfig: Codable, Equatable {
 
 // MARK: - Shared Helpers
 enum AppHelpers {
+    static let productName = "TypoFixr"
+    static let bundleIdentifier = "com.typofixr.app"
+    static let keychainService = bundleIdentifier
+    static let applicationSupportDirectoryName = "TypoFixr"
+    static let databaseFileName = "typo_fixr.db"
     static let feedbackEmail = "feedback@typofixr.com"
 
     static func openAccessibilitySettings() {
@@ -229,78 +253,20 @@ enum AppHelpers {
     }
 }
 
-// MARK: - Keychain Helper
-struct KeychainHelper {
-    private static let service = "com.typofixr.app"
-
-    static func save(key: String, value: String) {
-        guard let data = value.data(using: .utf8) else { return }
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecAttrAccount as String: key,
-            kSecValueData as String: data
-        ]
-
-        SecItemDelete(query as CFDictionary)
-        SecItemAdd(query as CFDictionary, nil)
+/// Xcode hosts unit tests inside the app executable. Keep that host out of the
+/// real Keychain, preferences and database before XCTest loads any test fixtures.
+enum AppRuntime {
+    static var isRunningTests: Bool {
+        let environment = ProcessInfo.processInfo.environment
+        return environment["TYPOFIXR_TESTING"] == "1" || environment["XCTestConfigurationFilePath"] != nil
+            || environment["XCTestBundlePath"] != nil
     }
 
-    static func load(key: String) -> String? {
-        // Try scoped query first
-        let scopedQuery: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecAttrAccount as String: key,
-            kSecReturnData as String: true,
-            kSecMatchLimit as String: kSecMatchLimitOne
-        ]
-
-        var result: AnyObject?
-        var status = SecItemCopyMatching(scopedQuery as CFDictionary, &result)
-
-        if status == errSecSuccess, let data = result as? Data,
-           let value = String(data: data, encoding: .utf8) {
-            return value
-        }
-
-        // Fall back to legacy unscoped query (pre-1.3.0 items)
-        let legacyQuery: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrAccount as String: key,
-            kSecReturnData as String: true,
-            kSecMatchLimit as String: kSecMatchLimitOne
-        ]
-
-        result = nil
-        status = SecItemCopyMatching(legacyQuery as CFDictionary, &result)
-
-        guard status == errSecSuccess, let data = result as? Data,
-              let value = String(data: data, encoding: .utf8) else {
-            return nil
-        }
-
-        // Migrate: re-save with service scope (save() deletes-then-adds)
-        save(key: key, value: value)
-
-        return value
+    static func makeAppState() -> AppState {
+        guard isRunningTests else { return AppState() }
+        let defaults = UserDefaults(suiteName: "TypoFixrTestHost.\(UUID().uuidString)")!
+        // Failure to allocate ephemeral storage must never fall back to production.
+        let database = try! DatabaseManager(path: ":memory:", deviceID: "test-host")
+        return AppState(defaults: defaults, databaseManager: database, credentials: MemoryCredentialStore())
     }
-
-    static func delete(key: String) {
-        let scopedQuery: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecAttrAccount as String: key
-        ]
-
-        SecItemDelete(scopedQuery as CFDictionary)
-
-        let legacyQuery: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrAccount as String: key
-        ]
-
-        SecItemDelete(legacyQuery as CFDictionary)
-    }
-
 }

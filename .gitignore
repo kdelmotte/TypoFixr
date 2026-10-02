@@ -43,3 +43,8 @@ xcuserdata/
 *.d
 *.dia
 *.swiftdeps
+
+# Release installers and signing exports
+*.dmg
+*.p12
+*.pfx

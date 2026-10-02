@@ -15,12 +15,17 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Validate release metadata
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: bash scripts/validate_release.sh "$RELEASE_TAG"
+
       - name: Run tests
         run: |
           xcodebuild test \
             -project TypoFixr.xcodeproj \
             -scheme TypoFixr \
-            -destination "platform=macOS,arch=arm64" \
+            -destination "platform=macOS" \
             -derivedDataPath "$RUNNER_TEMP/DerivedDataTests" \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO
@@ -177,10 +182,18 @@ jobs:
           echo "DMG stapling failed after 3 attempts"
           exit 1
 
+      - name: Create checksum
+        run: |
+          cd "$(dirname "$RELEASE_DMG")"
+          shasum -a 256 "$(basename "$RELEASE_DMG")" > "$RELEASE_DMG.sha256"
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: ${{ env.RELEASE_DMG }}
+          files: |
+            ${{ env.RELEASE_DMG }}
+            ${{ env.RELEASE_DMG }}.sha256
+          body_path: docs/releases/${{ github.ref_name }}.md
           generate_release_notes: true
 
       - name: Clean up keychain

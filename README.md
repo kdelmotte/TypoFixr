@@ -49,7 +49,7 @@ A macOS menu bar app that understands context and fixes your typos and grammar m
    ```bash
    make deploy
    ```
-   This builds a release binary, signs it with the local `TypoFixrDev` certificate (preserving accessibility permissions), resets onboarding, and launches the app.
+   This builds a release binary, signs it with the local `TypoFixrDev` certificate (preserving accessibility permissions), preserves onboarding and shortcut settings, and launches the app.
 
 ## Setup
 
@@ -75,6 +75,12 @@ A macOS menu bar app that understands context and fixes your typos and grammar m
 2. Press `⌘⇧D` (or your custom shortcut)
 3. Your text is instantly corrected!
 
+### Correction reliability
+
+Copy and Paste remain the compatibility path. Editors do not need to expose an Accessibility text role or selected range, but macOS Accessibility permission is still required to send keyboard commands. Keep the destination field and selection unchanged while correction runs; user interaction or a changed destination stops replacement.
+
+The app copies the selection again before replacing it, preserves available clipboard formats, and avoids restoring over a newer clipboard change. Repeated shortcuts cannot start overlapping corrections. Incomplete model responses are rejected instead of pasted. Select no more than 5,000 characters; use Cmd+Z in the destination app to undo.
+
 ### Smart Text Selection
 
 TypoFixr intelligently selects what to fix using a clipboard-based approach:
@@ -83,7 +89,7 @@ TypoFixr intelligently selects what to fix using a clipboard-based approach:
 |----------|----------|
 | 1. Selected text | If you've highlighted text, only that is corrected |
 | 2. Paragraph | Selects backward from cursor to start of paragraph |
-| 3. Line | If paragraph is too long, selects current line instead |
+| 3. Line | If paragraph capture finds no text, selects backward to the start of the line |
 | 4. Prompt | If no text found, you're prompted to select text |
 
 ### Customization
@@ -104,17 +110,18 @@ TypoFixr scans text **before** sending it to Groq:
 - **Prompt injection detection** — patterns like "ignore previous instructions"
 - **Sensitive data warnings** — credit cards, SSNs, passwords, API keys, emails, phone numbers
 
-When detected, you can choose to proceed or cancel.
+For sensitive data, you can choose to proceed or cancel. Prompt-injection matches are blocked before an API request.
 
 AI responses are **validated on return** for suspicious patterns (script tags, shell commands), AI refusals, and unexpected length.
 
 ## Privacy
 
 - **User-triggered only**: Text is only accessed when you press the shortcut
-- **Pass-through**: Text is sent to Groq, corrected, and immediately discarded
-- **Local storage**: Correction history is stored locally in SQLite
-- **Secure key storage**: Your API key is stored in macOS Keychain
+- **Direct processing**: Selected text is sent directly from your Mac to Groq using your API key
+- **Local storage**: Original and corrected text, source app identifiers, and token usage are stored in `~/Library/Application Support/TypoFixr/typo_fixr.db`. The menu shows the latest ten corrections; history persists until cleared.
+- **Secure key storage**: Your API key is stored in macOS Keychain under `com.typofixr.app`. Legacy keys created before 1.3.0 migrate from the exact empty-service entry; other apps’ credentials are not imported or deleted.
 - **Clear anytime**: Delete all history from Settings > Security
+- **Telemetry**: Existing TelemetryDeck configuration is retained. App-defined event payloads report lifecycle and correction outcomes, without correction text or API keys; the SDK supplies its standard metadata.
 
 ## Development
 
@@ -133,7 +140,13 @@ TypoFixr/
 │       │   └── OnboardingFlow.swift  # Onboarding step/gating logic
 │       ├── Services/
 │       │   ├── TextCorrectionService.swift  # Main correction logic
-│       │   ├── GroqService.swift             # AI integration
+│       │   ├── ClipboardTextEditor.swift     # Capture, revalidation, and clipboard restoration
+│       │   ├── GroqService.swift             # Bounded request orchestration
+│       │   ├── GroqClient.swift              # HTTP transport and response parsing
+│       │   ├── CorrectionPrompt.swift       # Prompt and request policy
+│       │   ├── CorrectionChunker.swift      # Split and reassemble text
+│       │   ├── CorrectionOutputProcessor.swift # Completion and formatting validation
+│       │   ├── CredentialStore.swift        # Scoped Keychain access
 │       │   ├── HotkeyService.swift          # Keyboard shortcuts
 │       │   ├── SecurityService.swift        # Security checks
 │       │   ├── NetworkMonitor.swift         # Connectivity detection
@@ -150,6 +163,10 @@ TypoFixr/
 └── Tests/
     └── TypoFixrTests/
         ├── AppStateTests.swift
+        ├── ClipboardTextEditorTests.swift
+        ├── CredentialStoreTests.swift
+        ├── GroqTransportTests.swift
+        ├── TestEnvironment.swift
         ├── CorrectionTests.swift
         ├── KeyboardShortcutTests.swift
         ├── GroqPromptConfigurationTests.swift
@@ -171,11 +188,11 @@ TypoFixr/
 make test
 ```
 
-Note: Requires Xcode (not just Command Line Tools) for XCTest support. The Makefile sets `DEVELOPER_DIR` automatically.
+Note: Requires Xcode (not just Command Line Tools) for XCTest support. The Makefile sets `DEVELOPER_DIR` automatically. Tests use temporary settings, in-memory databases and credentials, and named pasteboards. The Xcode test host skips normal app startup and telemetry. See [TEST_PLAN.md](TEST_PLAN.md) for automated coverage and app-specific manual checks.
 
 ### Dev Helper
 
-Build, sign, reset onboarding, and launch:
+Build, sign, preserve preferences, and launch:
 
 ```bash
 make deploy
@@ -185,6 +202,7 @@ make deploy
 
 - [SQLite.swift](https://github.com/stephencelis/SQLite.swift) - Database
 - [HotKey](https://github.com/soffes/HotKey) - Global keyboard shortcuts
+- [TelemetryDeck](https://github.com/TelemetryDeck/SwiftClient) - App lifecycle and correction outcome signals
 
 ## Troubleshooting
 
@@ -202,9 +220,9 @@ make deploy
 
 ### Text not being replaced
 
-1. Some apps have limited accessibility support
-2. Try selecting the text before pressing the shortcut
-3. Check if the text field is read-only
+1. Select the text before pressing the shortcut
+2. Keep the destination field and selection unchanged until correction finishes
+3. Check that the field accepts Copy/Paste and is not read-only
 
 ### API errors
 
@@ -236,6 +254,17 @@ MIT License - see LICENSE file for details.
 Contributions are welcome! Please open an issue or pull request.
 
 ## Changelog
+
+### v1.3.7
+- Verify the copied selection before replacement and stop stale corrections after destination changes or user interaction
+- Preserve clipboard items and representations, including rich text, images, and file URLs
+- Keep clipboard compatibility when Accessibility selection metadata is absent; prevent overlapping corrections
+- Reject truncated model responses; preserve user-authored brackets and emoji joiners; avoid false refusal detection for apology corrections
+- Scope credential mutations and safely retain legacy upgrade behavior
+- Isolate tests from real app data and preserve preferences during local deployment
+- Separate correction transport, prompt policy, chunking, and output validation for focused testing
+
+See [release notes](docs/releases/v1.3.7.md) and [RELEASING.md](RELEASING.md) for release preparation, signing, and validation.
 
 ### v1.3.6
 - Replaced the custom DMG packaging path with a standard `appdmg` drag-and-drop installer flow

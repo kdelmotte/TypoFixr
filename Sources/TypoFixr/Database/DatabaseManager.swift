@@ -31,15 +31,22 @@ class DatabaseManager {
 
     private init() {
         // Get or create device ID
-        if let savedDeviceId = KeychainHelper.load(key: "device_id") {
+        if let savedDeviceId = try? KeychainStore.shared.load(key: "device_id") {
             self.deviceId = savedDeviceId
         } else {
             let newDeviceId = UUID().uuidString
-            KeychainHelper.save(key: "device_id", value: newDeviceId)
+            try? KeychainStore.shared.save(key: "device_id", value: newDeviceId)
             self.deviceId = newDeviceId
         }
 
         setupDatabase()
+    }
+
+    /// Explicit storage location; tests use SQLite's in-memory database.
+    init(path: String, deviceID: String) throws {
+        self.deviceId = deviceID
+        self.db = try Connection(path)
+        try createTables()
     }
 
     private func setupDatabase() {
@@ -56,14 +63,15 @@ class DatabaseManager {
         let fileManager = FileManager.default
         guard let appSupport = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else {
             // Fallback to home directory
-            return NSHomeDirectory() + "/Library/Application Support/TypoFixr/typo_fixr.db"
+            return NSHomeDirectory()
+                + "/Library/Application Support/\(AppHelpers.applicationSupportDirectoryName)/\(AppHelpers.databaseFileName)"
         }
-        let appFolder = appSupport.appendingPathComponent("TypoFixr")
+        let appFolder = appSupport.appendingPathComponent(AppHelpers.applicationSupportDirectoryName)
 
         // Create directory if needed
         try? fileManager.createDirectory(at: appFolder, withIntermediateDirectories: true)
 
-        return appFolder.appendingPathComponent("typo_fixr.db").path
+        return appFolder.appendingPathComponent(AppHelpers.databaseFileName).path
     }
 
     private func createTables() throws {

@@ -1,0 +1,35 @@
+name: Verify
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: verify-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate release metadata and shell scripts
+        run: |
+          bash scripts/validate_release.sh
+          for script in scripts/*.sh; do bash -n "$script"; done
+      - name: Swift package tests
+        run: make test
+      - name: Xcode app and test host
+        run: |
+          xcodebuild test \
+            -project TypoFixr.xcodeproj \
+            -scheme TypoFixr \
+            -destination 'platform=macOS' \
+            -derivedDataPath "$RUNNER_TEMP/DerivedDataTests" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO

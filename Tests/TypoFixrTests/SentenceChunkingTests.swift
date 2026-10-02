@@ -12,18 +12,18 @@ final class SentenceChunkingTests: XCTestCase {
         let text = "The quick brown fox jumped gracefully over the extremely lazy dog sleeping in the sunny yard on a beautiful warm day during the long summer afternoon. " +
             "She sells hundreds of beautiful seashells down by the sparkling seashore every single bright morning during the warm summer season without fail. " +
             "Peter Piper carefully picked a very large peck of perfectly pickled peppers from the garden this fine afternoon in the quiet countryside near home."
-        let chunks = service.splitIntoSentenceChunks(text)
+        let chunks = CorrectionChunker().splitIntoSentenceChunks(text)
         XCTAssertGreaterThan(chunks.sentences.count, 1, "Multi-sentence text should produce multiple chunks")
     }
 
     func testSingleSentenceProducesOneChunk() {
         let text = "This is a single sentence without any period at the end"
-        let chunks = service.splitIntoSentenceChunks(text)
+        let chunks = CorrectionChunker().splitIntoSentenceChunks(text)
         XCTAssertEqual(chunks.sentences.count, 1)
     }
 
     func testEmptyTextProducesNoChunks() {
-        let chunks = service.splitIntoSentenceChunks("")
+        let chunks = CorrectionChunker().splitIntoSentenceChunks("")
         XCTAssertTrue(chunks.sentences.isEmpty)
     }
 
@@ -31,43 +31,43 @@ final class SentenceChunkingTests: XCTestCase {
 
     func testReassemblyPreservesSpacesBetweenSentences() {
         let text = "Hello world. How are you? I am fine."
-        let chunks = service.splitIntoSentenceChunks(text)
-        let reassembled = GroqService.reassemble(chunks: chunks, corrected: chunks.sentences)
+        let chunks = CorrectionChunker().splitIntoSentenceChunks(text)
+        let reassembled = CorrectionChunker.reassemble(chunks: chunks, corrected: chunks.sentences)
         XCTAssertEqual(reassembled, text)
     }
 
     func testReassemblyPreservesNewlines() {
         let text = "First line.\nSecond line.\nThird line."
-        let chunks = service.splitIntoSentenceChunks(text)
-        let reassembled = GroqService.reassemble(chunks: chunks, corrected: chunks.sentences)
+        let chunks = CorrectionChunker().splitIntoSentenceChunks(text)
+        let reassembled = CorrectionChunker.reassemble(chunks: chunks, corrected: chunks.sentences)
         XCTAssertEqual(reassembled, text)
     }
 
     func testReassemblyPreservesParagraphBreaks() {
         let text = "First paragraph.\n\nSecond paragraph.\n\nThird paragraph."
-        let chunks = service.splitIntoSentenceChunks(text)
-        let reassembled = GroqService.reassemble(chunks: chunks, corrected: chunks.sentences)
+        let chunks = CorrectionChunker().splitIntoSentenceChunks(text)
+        let reassembled = CorrectionChunker.reassemble(chunks: chunks, corrected: chunks.sentences)
         XCTAssertEqual(reassembled, text)
     }
 
     func testReassemblyPreservesLeadingWhitespace() {
         let text = "  Leading spaces. Then another sentence."
-        let chunks = service.splitIntoSentenceChunks(text)
-        let reassembled = GroqService.reassemble(chunks: chunks, corrected: chunks.sentences)
+        let chunks = CorrectionChunker().splitIntoSentenceChunks(text)
+        let reassembled = CorrectionChunker.reassemble(chunks: chunks, corrected: chunks.sentences)
         XCTAssertEqual(reassembled, text)
     }
 
     func testReassemblyPreservesTrailingWhitespace() {
         let text = "A sentence. Another one.  "
-        let chunks = service.splitIntoSentenceChunks(text)
-        let reassembled = GroqService.reassemble(chunks: chunks, corrected: chunks.sentences)
+        let chunks = CorrectionChunker().splitIntoSentenceChunks(text)
+        let reassembled = CorrectionChunker.reassemble(chunks: chunks, corrected: chunks.sentences)
         XCTAssertEqual(reassembled, text)
     }
 
     func testReassemblyPreservesMixedFormatting() {
         let text = "- First item.\n- Second item.\n\nA paragraph here. With two sentences.\n\n- Third item."
-        let chunks = service.splitIntoSentenceChunks(text)
-        let reassembled = GroqService.reassemble(chunks: chunks, corrected: chunks.sentences)
+        let chunks = CorrectionChunker().splitIntoSentenceChunks(text)
+        let reassembled = CorrectionChunker.reassemble(chunks: chunks, corrected: chunks.sentences)
         XCTAssertEqual(reassembled, text)
     }
 
@@ -75,7 +75,7 @@ final class SentenceChunkingTests: XCTestCase {
 
     func testURLWithQuestionMarkStaysInOneChunk() {
         let text = "Check this: https://docs.google.com/doc/edit?usp=sharing for details. Then do something else."
-        let chunks = service.splitIntoSentenceChunks(text)
+        let chunks = CorrectionChunker().splitIntoSentenceChunks(text)
 
         // The URL should not be split across chunks
         for sentence in chunks.sentences {
@@ -89,7 +89,7 @@ final class SentenceChunkingTests: XCTestCase {
 
     func testWhitespaceOnlyChunksAreFiltered() {
         let text = "First.\n\nSecond."
-        let chunks = service.splitIntoSentenceChunks(text)
+        let chunks = CorrectionChunker().splitIntoSentenceChunks(text)
 
         for sentence in chunks.sentences {
             XCTAssertFalse(
@@ -104,7 +104,7 @@ final class SentenceChunkingTests: XCTestCase {
     func testSmallSentencesAreMerged() {
         // Each sentence is tiny; combined easily <= maxClauseChunkSize (295)
         let text = "Hi. Yes. No. Ok. Sure. Fine."
-        let chunks = service.splitIntoSentenceChunks(text)
+        let chunks = CorrectionChunker().splitIntoSentenceChunks(text)
         // 6 tiny sentences should be merged into fewer chunks
         XCTAssertLessThan(chunks.sentences.count, 6, "Small adjacent sentences should be merged")
     }
@@ -112,7 +112,7 @@ final class SentenceChunkingTests: XCTestCase {
     func testMergedChunksDontExceedThreshold() {
         // Build text with many small sentences
         let text = (0..<20).map { "Sentence number \($0)." }.joined(separator: " ")
-        let chunks = service.splitIntoSentenceChunks(text)
+        let chunks = CorrectionChunker().splitIntoSentenceChunks(text)
 
         for sentence in chunks.sentences {
             XCTAssertLessThan(sentence.count, 300, "Merged chunks should not exceed chunking threshold")
@@ -123,7 +123,7 @@ final class SentenceChunkingTests: XCTestCase {
 
     func testSentencesAreRightTrimmed() {
         let text = "Hello world.  How are you?"
-        let chunks = service.splitIntoSentenceChunks(text)
+        let chunks = CorrectionChunker().splitIntoSentenceChunks(text)
 
         for sentence in chunks.sentences {
             let trimmed = sentence.replacingOccurrences(of: "\\s+$", with: "", options: .regularExpression)
@@ -145,7 +145,7 @@ final class SentenceChunkingTests: XCTestCase {
         XCTAssertEqual(policy.reasoningEffort, "medium")
 
         // Should produce 1 chunk (no sentence breaks)
-        let chunks = service.splitIntoSentenceChunks(longSentence)
+        let chunks = CorrectionChunker().splitIntoSentenceChunks(longSentence)
         XCTAssertEqual(chunks.sentences.count, 1, "Single long sentence should produce 1 chunk")
     }
 
@@ -160,11 +160,11 @@ final class SentenceChunkingTests: XCTestCase {
             "Humpty Dumpty sat on a wall and had a great fall."
         XCTAssertGreaterThan(text.count, 300)
 
-        let chunks = service.splitIntoSentenceChunks(text)
+        let chunks = CorrectionChunker().splitIntoSentenceChunks(text)
         XCTAssertGreaterThan(chunks.sentences.count, 1, "Long multi-sentence text should be chunked")
 
         // Reassembly should be exact
-        let reassembled = GroqService.reassemble(chunks: chunks, corrected: chunks.sentences)
+        let reassembled = CorrectionChunker.reassemble(chunks: chunks, corrected: chunks.sentences)
         XCTAssertEqual(reassembled, text)
     }
 
@@ -172,7 +172,7 @@ final class SentenceChunkingTests: XCTestCase {
 
     func testAbbreviationsDontCauseFalseSplits() {
         let text = "Dr. Smith went to Washington D.C. for the conference."
-        let chunks = service.splitIntoSentenceChunks(text)
+        let chunks = CorrectionChunker().splitIntoSentenceChunks(text)
         // NLTokenizer should handle abbreviations — this is a single sentence
         XCTAssertEqual(chunks.sentences.count, 1, "Abbreviations should not cause false sentence splits")
     }
@@ -181,11 +181,11 @@ final class SentenceChunkingTests: XCTestCase {
 
     func testListItemsProduceSeparateChunks() {
         let text = "- First item.\n- Second item.\n- Third item."
-        let chunks = service.splitIntoSentenceChunks(text)
+        let chunks = CorrectionChunker().splitIntoSentenceChunks(text)
         XCTAssertGreaterThanOrEqual(chunks.sentences.count, 1)
 
         // Reassembly should be exact
-        let reassembled = GroqService.reassemble(chunks: chunks, corrected: chunks.sentences)
+        let reassembled = CorrectionChunker.reassemble(chunks: chunks, corrected: chunks.sentences)
         XCTAssertEqual(reassembled, text)
     }
 
@@ -193,8 +193,8 @@ final class SentenceChunkingTests: XCTestCase {
 
     func testEmojiHandledCorrectly() {
         let text = "Had a great day! 🎉 The weather was perfect. ☀️"
-        let chunks = service.splitIntoSentenceChunks(text)
-        let reassembled = GroqService.reassemble(chunks: chunks, corrected: chunks.sentences)
+        let chunks = CorrectionChunker().splitIntoSentenceChunks(text)
+        let reassembled = CorrectionChunker.reassemble(chunks: chunks, corrected: chunks.sentences)
         XCTAssertEqual(reassembled, text)
     }
 
@@ -207,7 +207,7 @@ final class SentenceChunkingTests: XCTestCase {
             "and after that I drove home through the very heavy traffic which took forever to finally clear up on the highway today."
         XCTAssertGreaterThan(text.count, 295)
 
-        let chunks = service.splitIntoSentenceChunks(text)
+        let chunks = CorrectionChunker().splitIntoSentenceChunks(text)
 
         // Should be split into multiple sub-chunks
         XCTAssertGreaterThan(chunks.sentences.count, 1, "Oversized chunk should be split at clause boundaries")
@@ -218,7 +218,7 @@ final class SentenceChunkingTests: XCTestCase {
         }
 
         // Reassembly must be exact
-        let reassembled = GroqService.reassemble(chunks: chunks, corrected: chunks.sentences)
+        let reassembled = CorrectionChunker.reassemble(chunks: chunks, corrected: chunks.sentences)
         XCTAssertEqual(reassembled, text)
     }
 
@@ -228,10 +228,10 @@ final class SentenceChunkingTests: XCTestCase {
             "management eventually realized the timeline was unrealistic and agreed to push it back a few extra days."
         XCTAssertGreaterThan(text.count, 295)
 
-        let chunks = service.splitIntoSentenceChunks(text)
+        let chunks = CorrectionChunker().splitIntoSentenceChunks(text)
         XCTAssertGreaterThan(chunks.sentences.count, 1, "Oversized chunk should split at semicolons")
 
-        let reassembled = GroqService.reassemble(chunks: chunks, corrected: chunks.sentences)
+        let reassembled = CorrectionChunker.reassemble(chunks: chunks, corrected: chunks.sentences)
         XCTAssertEqual(reassembled, text)
     }
 
@@ -240,7 +240,7 @@ final class SentenceChunkingTests: XCTestCase {
         let text = String(repeating: "word ", count: 70) // ~350 chars, no delimiters
         XCTAssertGreaterThan(text.count, 295)
 
-        let chunks = service.splitIntoSentenceChunks(text)
+        let chunks = CorrectionChunker().splitIntoSentenceChunks(text)
         XCTAssertEqual(chunks.sentences.count, 1, "Chunk with no clause delimiters should stay as one")
     }
 
@@ -251,7 +251,7 @@ final class SentenceChunkingTests: XCTestCase {
             "plus a third clause to make it extra long and ensure it definitely gets split at clause boundaries by the algorithm."
         XCTAssertGreaterThan(text.count, 295)
 
-        let chunks = service.splitIntoSentenceChunks(text)
+        let chunks = CorrectionChunker().splitIntoSentenceChunks(text)
         XCTAssertGreaterThan(chunks.sentences.count, 1)
 
         // At least one left chunk should end with a comma (comma attached to left)
@@ -269,7 +269,7 @@ final class SentenceChunkingTests: XCTestCase {
         XCTAssertLessThanOrEqual(s1.count + 1 + s2.count, 295) // +1 for space gap
 
         let text = s1 + " " + s2
-        let chunks = service.splitIntoSentenceChunks(text)
+        let chunks = CorrectionChunker().splitIntoSentenceChunks(text)
         XCTAssertEqual(chunks.sentences.count, 1, "Adjacent sentences fitting within 295 chars should merge")
     }
 
@@ -279,7 +279,7 @@ final class SentenceChunkingTests: XCTestCase {
             "and then I stopped by the pharmacy to pick up my prescription that had been waiting for a few days, " +
             "and after that I drove home through the heavy traffic which took forever to clear up on the highway."
 
-        let chunks = service.splitIntoSentenceChunks(text)
+        let chunks = CorrectionChunker().splitIntoSentenceChunks(text)
 
         for sentence in chunks.sentences {
             let policy = service.requestPolicy(for: sentence)
@@ -296,8 +296,8 @@ final class SentenceChunkingTests: XCTestCase {
             "and then it finally ends with some more words about the weather and how nice it is outside today. " +
             "Final short sentence."
 
-        let chunks = service.splitIntoSentenceChunks(text)
-        let reassembled = GroqService.reassemble(chunks: chunks, corrected: chunks.sentences)
+        let chunks = CorrectionChunker().splitIntoSentenceChunks(text)
+        let reassembled = CorrectionChunker.reassemble(chunks: chunks, corrected: chunks.sentences)
         XCTAssertEqual(reassembled, text, "Reassembly must be exact with mixed sentence sizes")
     }
 
@@ -305,7 +305,7 @@ final class SentenceChunkingTests: XCTestCase {
 
     func testBasicTwoParagraphs() {
         let text = "First paragraph here.\n\nSecond paragraph here."
-        let result = GroqService.splitIntoParagraphs(text)
+        let result = CorrectionChunker.splitIntoParagraphs(text)
         XCTAssertNotNil(result)
         XCTAssertEqual(result!.sentences.count, 2)
         XCTAssertEqual(result!.sentences[0], "First paragraph here.")
@@ -318,24 +318,24 @@ final class SentenceChunkingTests: XCTestCase {
 
     func testSingleParagraphReturnsNil() {
         let text = "Just one paragraph with no double newlines."
-        XCTAssertNil(GroqService.splitIntoParagraphs(text))
+        XCTAssertNil(CorrectionChunker.splitIntoParagraphs(text))
     }
 
     func testSingleNewlineOnlyReturnsNil() {
         let text = "First line.\nSecond line."
-        XCTAssertNil(GroqService.splitIntoParagraphs(text))
+        XCTAssertNil(CorrectionChunker.splitIntoParagraphs(text))
     }
 
     func testPreservesTripleNewlineAsGap() {
         let text = "Para one.\n\n\nPara two."
-        let result = GroqService.splitIntoParagraphs(text)
+        let result = CorrectionChunker.splitIntoParagraphs(text)
         XCTAssertNotNil(result)
         XCTAssertEqual(result!.gaps[0], "\n\n\n")
     }
 
     func testLeadingDoubleNewlineBecomesLeadingGap() {
         let text = "\n\nPara one.\n\nPara two."
-        let result = GroqService.splitIntoParagraphs(text)
+        let result = CorrectionChunker.splitIntoParagraphs(text)
         XCTAssertNotNil(result)
         XCTAssertEqual(result!.sentences.count, 2)
         XCTAssertEqual(result!.leadingGap, "\n\n")
@@ -343,7 +343,7 @@ final class SentenceChunkingTests: XCTestCase {
 
     func testTrailingDoubleNewlineBecomesTrailingGap() {
         let text = "Para one.\n\nPara two.\n\n"
-        let result = GroqService.splitIntoParagraphs(text)
+        let result = CorrectionChunker.splitIntoParagraphs(text)
         XCTAssertNotNil(result)
         XCTAssertEqual(result!.sentences.count, 2)
         XCTAssertEqual(result!.trailingGap, "\n\n")
@@ -351,17 +351,17 @@ final class SentenceChunkingTests: XCTestCase {
 
     func testParagraphReassemblyRoundtrip() {
         let text = "First paragraph.\n\nSecond paragraph.\n\nThird paragraph."
-        let result = GroqService.splitIntoParagraphs(text)
+        let result = CorrectionChunker.splitIntoParagraphs(text)
         XCTAssertNotNil(result)
-        let reassembled = GroqService.reassemble(chunks: result!, corrected: result!.sentences)
+        let reassembled = CorrectionChunker.reassemble(chunks: result!, corrected: result!.sentences)
         XCTAssertEqual(reassembled, text)
     }
 
     func testParagraphReassemblyWithLeadingTrailingGaps() {
         let text = "\n\nFirst.\n\nSecond.\n\n"
-        let result = GroqService.splitIntoParagraphs(text)
+        let result = CorrectionChunker.splitIntoParagraphs(text)
         XCTAssertNotNil(result)
-        let reassembled = GroqService.reassemble(chunks: result!, corrected: result!.sentences)
+        let reassembled = CorrectionChunker.reassemble(chunks: result!, corrected: result!.sentences)
         XCTAssertEqual(reassembled, text)
     }
 
@@ -382,7 +382,7 @@ final class SentenceChunkingTests: XCTestCase {
         thanks,
         Kevin
         """
-        let result = GroqService.splitIntoParagraphs(text)
+        let result = CorrectionChunker.splitIntoParagraphs(text)
         XCTAssertNotNil(result)
         XCTAssertGreaterThanOrEqual(result!.sentences.count, 4, "Bug-scenario email should split into multiple paragraphs")
 
@@ -395,7 +395,7 @@ final class SentenceChunkingTests: XCTestCase {
     func testOneNonEmptyParagraphWithBlanksReturnsNil() {
         // Leading and trailing blank lines but only one real paragraph
         let text = "\n\nOnly real paragraph.\n\n"
-        XCTAssertNil(GroqService.splitIntoParagraphs(text))
+        XCTAssertNil(CorrectionChunker.splitIntoParagraphs(text))
     }
 
     func testShortTextWithDoubleNewlineSkipsParagraphSplitting() {
@@ -403,7 +403,7 @@ final class SentenceChunkingTests: XCTestCase {
         let text = "Short.\n\nAlso short."
         XCTAssertLessThan(text.count, 300)
         // splitIntoParagraphs itself works, but correctText won't call it for short text
-        let result = GroqService.splitIntoParagraphs(text)
+        let result = CorrectionChunker.splitIntoParagraphs(text)
         XCTAssertNotNil(result, "splitIntoParagraphs should work on short text")
         // The gate in correctText checks text.count >= chunkingThreshold first
     }
@@ -416,7 +416,7 @@ final class SentenceChunkingTests: XCTestCase {
             "and it continues further well past the two hundred and ninety five character threshold without any breaks here."
         XCTAssertGreaterThan(text.count, 295)
 
-        let chunks = service.splitIntoSentenceChunks(text)
+        let chunks = CorrectionChunker().splitIntoSentenceChunks(text)
 
         // If it splits, left fragment should be >= 40 chars
         for sentence in chunks.sentences {
@@ -431,7 +431,7 @@ final class SentenceChunkingTests: XCTestCase {
 
     func testFlattenSingleTextProducesSinglePlan() {
         let text = "Short text here."
-        let (leaves, plan) = service.flattenIntoLeafChunks(text)
+        let (leaves, plan) = CorrectionChunker().flattenIntoLeafChunks(text)
         XCTAssertEqual(leaves.count, 1)
         if case .single = plan {} else {
             XCTFail("Short text should produce .single plan")
@@ -440,7 +440,7 @@ final class SentenceChunkingTests: XCTestCase {
 
     func testFlattenListProducesListPlan() {
         let text = "- First item\n- Second item\n- Third item"
-        let (leaves, plan) = service.flattenIntoLeafChunks(text)
+        let (leaves, plan) = CorrectionChunker().flattenIntoLeafChunks(text)
         XCTAssertEqual(leaves.count, 3)
         XCTAssertEqual(leaves[0], "First item")
         XCTAssertEqual(leaves[1], "Second item")
@@ -461,7 +461,7 @@ final class SentenceChunkingTests: XCTestCase {
         let text = para1 + "\n\n" + para2 + "\n\n" + para3
         XCTAssertGreaterThanOrEqual(text.count, 300)
 
-        let (leaves, plan) = service.flattenIntoLeafChunks(text)
+        let (leaves, plan) = CorrectionChunker().flattenIntoLeafChunks(text)
         XCTAssertGreaterThanOrEqual(leaves.count, 3)
         if case .paragraphs = plan {} else {
             XCTFail("Multi-paragraph text should produce .paragraphs plan")
@@ -474,7 +474,7 @@ final class SentenceChunkingTests: XCTestCase {
         let text = prose + "\n\nthanks,\n\nKevin"
         XCTAssertGreaterThanOrEqual(text.count, 300)
 
-        let (leaves, plan) = service.flattenIntoLeafChunks(text)
+        let (leaves, plan) = CorrectionChunker().flattenIntoLeafChunks(text)
         // "thanks," and "Kevin" should merge into one leaf since combined <= 295
         if case .paragraphs(let chunks, _) = plan {
             // The last paragraph in chunks should be the merged "thanks,\n\nKevin"
@@ -485,7 +485,7 @@ final class SentenceChunkingTests: XCTestCase {
             // Even if it doesn't go through paragraphs path, the test passes if leaves are reasonable
         }
         // Reassembly round-trip
-        let reassembled = GroqService.reassembleFromLeafResults(leaves, plan: plan)
+        let reassembled = CorrectionChunker.reassembleFromLeafResults(leaves, plan: plan)
         XCTAssertEqual(reassembled, text, "Flatten→reassemble round-trip must preserve original text")
     }
 
@@ -500,9 +500,9 @@ final class SentenceChunkingTests: XCTestCase {
             "Humpty Dumpty sat on a wall and had a great fall."
         XCTAssertGreaterThan(text.count, 300)
 
-        let (leaves, plan) = service.flattenIntoLeafChunks(text)
+        let (leaves, plan) = CorrectionChunker().flattenIntoLeafChunks(text)
         XCTAssertGreaterThan(leaves.count, 1)
-        let reassembled = GroqService.reassembleFromLeafResults(leaves, plan: plan)
+        let reassembled = CorrectionChunker.reassembleFromLeafResults(leaves, plan: plan)
         XCTAssertEqual(reassembled, text)
     }
 
@@ -513,8 +513,8 @@ final class SentenceChunkingTests: XCTestCase {
             "Let me know if you have any questions about the above items or if anything needs to be clarified further."
         XCTAssertGreaterThanOrEqual(text.count, 300)
 
-        let (leaves, plan) = service.flattenIntoLeafChunks(text)
-        let reassembled = GroqService.reassembleFromLeafResults(leaves, plan: plan)
+        let (leaves, plan) = CorrectionChunker().flattenIntoLeafChunks(text)
+        let reassembled = CorrectionChunker.reassembleFromLeafResults(leaves, plan: plan)
         XCTAssertEqual(reassembled, text, "Mixed paragraph+list round-trip must be exact")
     }
 
@@ -536,11 +536,11 @@ final class SentenceChunkingTests: XCTestCase {
         Kevin
         """
 
-        let (leaves, plan) = service.flattenIntoLeafChunks(text)
+        let (leaves, plan) = CorrectionChunker().flattenIntoLeafChunks(text)
         XCTAssertLessThanOrEqual(leaves.count, 15, "Bug-scenario email should produce ≤15 leaf chunks, got \(leaves.count)")
 
         // Round-trip
-        let reassembled = GroqService.reassembleFromLeafResults(leaves, plan: plan)
+        let reassembled = CorrectionChunker.reassembleFromLeafResults(leaves, plan: plan)
         XCTAssertEqual(reassembled, text, "Bug-scenario email flatten→reassemble must be exact")
     }
 

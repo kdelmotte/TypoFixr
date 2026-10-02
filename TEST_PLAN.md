@@ -1,6 +1,31 @@
-# TypoFixr - Test Plan (TDD)
+# TypoFixr Acceptance Test Plan
 
-This document defines acceptance criteria for all MVP features. Each test should pass before the feature is considered complete.
+This document defines acceptance criteria, not a claim that every listed app or model outcome has been verified. Record actual results separately from targets.
+
+## 1.3.7 verification record
+
+- Automated suite: 232 tests passed in both Swift Package Manager and the Xcode app test host during release preparation. The suite uses isolated settings, an in-memory database, in-memory credentials, and named test pasteboards.
+- Release artifact: the universal 1.3.7 (build 2) app and DMG passed Developer ID signature, Apple notarization, stapling, and Gatekeeper checks. The mounted DMG contains the expected `com.typofixr.app` binary and Applications link.
+- Legacy credential compatibility: an isolated temporary macOS Keychain confirmed that an exact empty-service query finds a record originally saved without a service. Only dummy test data was used.
+- Live clipboard checks: explicit selection and cursor-based paragraph fallback passed in separate AppKit and WebKit test editors, with AX selection metadata deliberately unavailable. All four cases restored the original clipboard.
+- A direct Codex shortcut/API/undo run has not been recorded. The test editors do not establish compatibility with every application below.
+- Model quality and latency targets require live API testing; mock transport tests only establish client behavior.
+
+### Required regression checks
+
+| Scenario | Expected behavior | Automated coverage |
+| --- | --- | --- |
+| AX selection metadata unavailable | Copy/select/paste still works | `ClipboardTextEditorTests` |
+| Copy arrives late or does nothing | Wait for the copy; never use stale clipboard text | `ClipboardTextEditorTests` |
+| App, field, range, or copied text changes | Stop before replacement | `ClipboardTextEditorTests`, `TextSelectionFlowTests` |
+| Repeated shortcut during a request | Only one correction starts | `TextSelectionFlowTests` |
+| Rich clipboard or copy during a request | Restore owned data only; preserve later copies | `ClipboardTextEditorTests` |
+| `finish_reason: length`, even with complete-looking text | Reject without replacing text | `GroqOutputValidationTests` |
+| Brackets, emoji joiners, apology typos | Preserve user content; avoid false refusal | `GroqOutputValidationTests`, `WhitespaceNormalizationTests` |
+| Keychain read/write/delete and legacy upgrade | Scope by service/account; migrate exact empty-service legacy records without touching other services; preserve data on failure | `CredentialStoreTests` |
+| Tests or Xcode test-host startup | Do not touch production history/settings/credentials | `TestEnvironment`, `AppRuntime` |
+
+Repeat the capture, fallback, replacement, clipboard, and undo checks in the actual reported app before marking its compatibility complete.
 
 ---
 
@@ -13,18 +38,18 @@ This document defines acceptance criteria for all MVP features. Each test should
 | TC-1.1.2 | Selection works across apps | Select text in Safari, Notes, Slack, Mail | Text captured correctly in each |
 | TC-1.1.3 | Partial selection in long document | Select 3 words in a 10,000 word doc | Only selected 3 words sent |
 
-### 1.2 Full Field Capture (No Selection)
+### 1.2 Capture Before the Cursor (No Selection)
 | ID | Test Case | Input | Expected Output |
 |----|-----------|-------|-----------------|
-| TC-1.2.1 | Short text field captured fully | Type "thansk" in empty Slack input, no selection | Full text "thansk" sent |
+| TC-1.2.1 | Short text field captured fully | Type "thansk" in an empty input, cursor at end | Text before cursor captured through fallback |
 | TC-1.2.2 | Character limit respected | Type 6000 chars, no selection (limit=5000) | Alert shown asking to select less text |
-| TC-1.2.3 | Empty field handled | Press shortcut on empty field | Show "No text to fix" notification |
+| TC-1.2.3 | Empty field handled | Press shortcut on empty field | Show a selection error without an API request |
 
 ### 1.3 Paragraph Fallback
 | ID | Test Case | Input | Expected Output |
 |----|-----------|-------|-----------------|
-| TC-1.3.1 | Current paragraph detected | Cursor in middle of paragraph, no selection | Current paragraph sent |
-| TC-1.3.2 | Paragraph boundary = newline | Text has 3 paragraphs, cursor in 2nd | Only 2nd paragraph sent |
+| TC-1.3.1 | Current paragraph detected | Cursor in middle of paragraph, no selection | Text selected backward toward paragraph start; text after cursor unchanged |
+| TC-1.3.2 | Paragraph boundary = newline | Text has 3 paragraphs, cursor at end of 2nd | Second paragraph selected backward; other paragraphs unchanged |
 
 ---
 
@@ -67,7 +92,7 @@ This document defines acceptance criteria for all MVP features. Each test should
 | ID | Test Case | Input | Expected Output |
 |----|-----------|-------|-----------------|
 | TC-3.2.1 | History stores corrections | Make 3 corrections | All 3 appear in menu dropdown |
-| TC-3.2.3 | History limit respected | Make 15 corrections | Only last 10 stored |
+| TC-3.2.3 | History limit respected | Make 15 corrections | Latest 10 shown in recent history; database retains all until cleared |
 | TC-3.2.4 | History persists across sessions | Make corrections, quit, relaunch | History still visible |
 
 ### 3.3 System Undo Compatibility
@@ -155,7 +180,7 @@ This document defines acceptance criteria for all MVP features. Each test should
 | TC-6.4.1 | Identical input is stable across retries | Run same input 20x in a row | Output text is identical each run |
 | TC-6.4.2 | Core note/not ambiguity regression | "The si the foithb ntot" | Corrected text contains "note" (not "not") |
 | TC-6.4.3 | Deterministic decode config is present | Inspect request body in unit test | `temperature=0`, `top_p=1`, `n=1` |
-| TC-6.4.4 | Contextual prompt contract is present | Inspect system prompt in unit test | Prompt includes contextual disambiguation rules and examples |
+| TC-6.4.4 | Contextual prompt contract is present | Inspect user-message instructions in unit test | Prompt includes contextual disambiguation rules and examples |
 
 ### 6.5 Ambiguous Phrase Regression Set (Manual)
 Run each phrase at least 5 times and record pass/fail consistency.
@@ -180,9 +205,9 @@ Run each phrase at least 5 times and record pass/fail consistency.
 |----|-----------|-------|-----------------|
 | TC-6.6.1 | Short text not chunked | "teh quick fox" (< 300 chars) | Single API call, no chunking |
 | TC-6.6.2 | Long multi-sentence text chunked | 300+ chars with 3 sentences | Split into sentence-level chunks, corrected in parallel |
-| TC-6.6.3 | Adjacent short sentences merged | Two 50-char sentences | Merged into single chunk (<= 280 chars combined) |
+| TC-6.6.3 | Adjacent short sentences merged | Two 50-char sentences | Merged into single chunk (<= 295 chars combined) |
 | TC-6.6.4 | Oversized sentence split at clause | 300+ char single sentence with `, ` | Split at clause boundary near midpoint |
-| TC-6.6.5 | Recursive clause splitting | 600+ char sentence with multiple clauses | All sub-chunks <= 280 chars |
+| TC-6.6.5 | Recursive clause splitting | 600+ char sentence with multiple clauses | All sub-chunks <= 295 chars |
 | TC-6.6.6 | URL healing merge | Sentence with URL containing `?` | URL not split across chunks |
 | TC-6.6.7 | Reassembly preserves gaps | Chunked text with varying whitespace | Original whitespace between sentences preserved |
 | TC-6.6.8 | Single long sentence no delimiters | 400+ chars, no clause delimiters | Falls back to single-call with medium reasoning |
@@ -207,7 +232,7 @@ Run each phrase at least 5 times and record pass/fail consistency.
 | ID | Test Case | Input | Expected Output |
 |----|-----------|-------|-----------------|
 | TC-6.9.1 | Notes multi-line list preserved | Notes bullet list with `\t•\t` prefixes | List structure preserved, items corrected individually |
-| TC-6.9.2 | Notes text skips bullet stripping | Multi-line Notes text | `normalizeCapturedTextForCorrection` skips prefix stripping so `parseMultiLineList` handles it |
+| TC-6.9.2 | Notes text skips bullet stripping | Multi-line Notes text | `ClipboardTextEditor` skips prefix stripping so `parseMultiLineList` handles it |
 
 ---
 
@@ -251,7 +276,7 @@ Run each phrase at least 5 times and record pass/fail consistency.
 | ID | Test Case | Input | Expected Output |
 |----|-----------|-------|-----------------|
 | TC-8.2.1 | Message clarity | Read onboarding text | Clear that it's user-triggered only |
-| TC-8.2.2 | No storage mentioned | Read onboarding text | Clear that no text is stored |
+| TC-8.2.2 | Storage disclosure | Read privacy text | Explain direct Groq processing and local correction history |
 
 ---
 
@@ -261,8 +286,8 @@ Run each phrase at least 5 times and record pass/fail consistency.
 | ID | Test Case | Input | Expected Output |
 |----|-----------|-------|-----------------|
 | TC-9.1.1 | API down | Disconnect network, trigger | "Couldn't connect" notification, text preserved |
-| TC-9.1.2 | Read-only field | Focus read-only field, trigger | "This text field is read-only" notification |
-| TC-9.1.3 | Unsupported app | App without accessibility support | "This app isn't supported" notification |
+| TC-9.1.2 | Read-only field | Focus read-only field, trigger | No unexpected text changes; record app-specific Copy/Paste behavior |
+| TC-9.1.3 | Missing AX selection metadata | App supports Copy/Paste but omits AX text metadata | Clipboard correction remains available |
 | TC-9.1.4 | Empty response from API | API returns empty string | Original text preserved, error logged |
 
 ### 9.2 Boundary Conditions
@@ -295,6 +320,7 @@ Run each phrase at least 5 times and record pass/fail consistency.
 | TC-10.2.4 | Safari | Safari text fields | Full functionality |
 | TC-10.2.5 | Notion | Notion desktop | Test and document behavior |
 | TC-10.2.6 | Google Docs | Chrome/Safari | Test and document behavior |
+| TC-10.2.7 | Codex | Codex composer | Selected text and paragraph fallback, replacement, Cmd+Z, and clipboard preservation; record direct test result |
 
 ---
 
@@ -323,7 +349,7 @@ Run each phrase at least 5 times and record pass/fail consistency.
 
 ### Automated (Unit/Integration Tests)
 - TC-2.x (Text replacement logic - mock API)
-- TC-6.2.x (Response timing)
+- HTTP timeout/status/cancellation behavior with injected transport (not live latency)
 - TC-6.4.3, TC-6.4.4 (deterministic decode and prompt contract)
 - TC-6.6.x (Sentence chunking logic)
 - TC-6.7.x (Multi-line list detection)
@@ -331,6 +357,7 @@ Run each phrase at least 5 times and record pass/fail consistency.
 - TC-7.x (Database operations)
 
 ### Manual Testing Required
+- TC-6.2.x (Live response latency; targets, not guarantees)
 - TC-1.1.x, TC-1.2.x (Cross-app text capture)
 - TC-4.x (Global keyboard shortcuts)
 - TC-5.x (UI visual verification)

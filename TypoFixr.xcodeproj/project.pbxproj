@@ -44,6 +44,17 @@
 		TAPP014 /* TextSelectionFlowTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST014 /* TextSelectionFlowTests.swift */; };
 		TAPP015 /* OnboardingFlowTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST015 /* OnboardingFlowTests.swift */; };
 		TAPP016 /* TelemetryServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TST016 /* TelemetryServiceTests.swift */; };
+		RAPPBUILD000 /* ClipboardTextEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = RAPPREF000 /* ClipboardTextEditor.swift */; };
+		RAPPBUILD001 /* CorrectionChunker.swift in Sources */ = {isa = PBXBuildFile; fileRef = RAPPREF001 /* CorrectionChunker.swift */; };
+		RAPPBUILD002 /* CorrectionOutputProcessor.swift in Sources */ = {isa = PBXBuildFile; fileRef = RAPPREF002 /* CorrectionOutputProcessor.swift */; };
+		RAPPBUILD003 /* CorrectionPrompt.swift in Sources */ = {isa = PBXBuildFile; fileRef = RAPPREF003 /* CorrectionPrompt.swift */; };
+		RAPPBUILD004 /* CredentialStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = RAPPREF004 /* CredentialStore.swift */; };
+		RAPPBUILD005 /* GroqClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = RAPPREF005 /* GroqClient.swift */; };
+		RTSTBUILD001 /* ClipboardTextEditorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = RTSTREF001 /* ClipboardTextEditorTests.swift */; };
+		RTSTBUILD003 /* CredentialStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = RTSTREF003 /* CredentialStoreTests.swift */; };
+		RTSTBUILD007 /* GroqTransportTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = RTSTREF007 /* GroqTransportTests.swift */; };
+		RTSTBUILD015 /* TestEnvironment.swift in Sources */ = {isa = PBXBuildFile; fileRef = RTSTREF015 /* TestEnvironment.swift */; };
+		RAPPFEEDBACKBUILD /* CorrectionFeedback.swift in Sources */ = {isa = PBXBuildFile; fileRef = RAPPFEEDBACKREF /* CorrectionFeedback.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -94,6 +105,17 @@
 		TST014 /* TextSelectionFlowTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TextSelectionFlowTests.swift; sourceTree = "<group>"; };
 		TST015 /* OnboardingFlowTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingFlowTests.swift; sourceTree = "<group>"; };
 		TST016 /* TelemetryServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TelemetryServiceTests.swift; sourceTree = "<group>"; };
+		RAPPREF000 /* ClipboardTextEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardTextEditor.swift; sourceTree = "<group>"; };
+		RAPPREF001 /* CorrectionChunker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CorrectionChunker.swift; sourceTree = "<group>"; };
+		RAPPREF002 /* CorrectionOutputProcessor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CorrectionOutputProcessor.swift; sourceTree = "<group>"; };
+		RAPPREF003 /* CorrectionPrompt.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CorrectionPrompt.swift; sourceTree = "<group>"; };
+		RAPPREF004 /* CredentialStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CredentialStore.swift; sourceTree = "<group>"; };
+		RAPPREF005 /* GroqClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GroqClient.swift; sourceTree = "<group>"; };
+		RTSTREF001 /* ClipboardTextEditorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardTextEditorTests.swift; sourceTree = "<group>"; };
+		RTSTREF003 /* CredentialStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CredentialStoreTests.swift; sourceTree = "<group>"; };
+		RTSTREF007 /* GroqTransportTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GroqTransportTests.swift; sourceTree = "<group>"; };
+		RTSTREF015 /* TestEnvironment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TestEnvironment.swift; sourceTree = "<group>"; };
+		RAPPFEEDBACKREF /* CorrectionFeedback.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CorrectionFeedback.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -167,6 +189,13 @@
 		SERVICES /* Services */ = {
 			isa = PBXGroup;
 			children = (
+				RAPPFEEDBACKREF /* CorrectionFeedback.swift */,
+				RAPPREF005 /* GroqClient.swift */,
+				RAPPREF004 /* CredentialStore.swift */,
+				RAPPREF003 /* CorrectionPrompt.swift */,
+				RAPPREF002 /* CorrectionOutputProcessor.swift */,
+				RAPPREF001 /* CorrectionChunker.swift */,
+				RAPPREF000 /* ClipboardTextEditor.swift */,
 				SRC014 /* GroqService.swift */,
 				SRC007 /* HotkeyService.swift */,
 				SRC017 /* HUDService.swift */,
@@ -204,6 +233,10 @@
 		TESTGROUP /* TypoFixrTests */ = {
 			isa = PBXGroup;
 			children = (
+				RTSTREF015 /* TestEnvironment.swift */,
+				RTSTREF007 /* GroqTransportTests.swift */,
+				RTSTREF003 /* CredentialStoreTests.swift */,
+				RTSTREF001 /* ClipboardTextEditorTests.swift */,
 				TST006 /* AppStateTests.swift */,
 				TST004 /* CorrectionTests.swift */,
 				TST011 /* GroqOutputValidationTests.swift */,
@@ -325,6 +358,13 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				RAPPFEEDBACKBUILD /* CorrectionFeedback.swift in Sources */,
+				RAPPBUILD005 /* GroqClient.swift in Sources */,
+				RAPPBUILD004 /* CredentialStore.swift in Sources */,
+				RAPPBUILD003 /* CorrectionPrompt.swift in Sources */,
+				RAPPBUILD002 /* CorrectionOutputProcessor.swift in Sources */,
+				RAPPBUILD001 /* CorrectionChunker.swift in Sources */,
+				RAPPBUILD000 /* ClipboardTextEditor.swift in Sources */,
 				APP001 /* TypoFixrApp.swift in Sources */,
 				APP002 /* AppDelegate.swift in Sources */,
 				APP003 /* AppState.swift in Sources */,
@@ -350,6 +390,10 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				RTSTBUILD015 /* TestEnvironment.swift in Sources */,
+				RTSTBUILD007 /* GroqTransportTests.swift in Sources */,
+				RTSTBUILD003 /* CredentialStoreTests.swift in Sources */,
+				RTSTBUILD001 /* ClipboardTextEditorTests.swift in Sources */,
 				TAPP001 /* WhitespaceNormalizationTests.swift in Sources */,
 				TAPP002 /* HUDViewTests.swift in Sources */,
 				TAPP004 /* CorrectionTests.swift in Sources */,
@@ -452,7 +496,7 @@
 				CODE_SIGN_ENTITLEMENTS = "";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_TEAM = "";
 				ENABLE_HARDENED_RUNTIME = NO;
@@ -465,7 +509,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 1.3.6;
+				MARKETING_VERSION = 1.3.7;
 				PRODUCT_BUNDLE_IDENTIFIER = com.typofixr.app;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -478,10 +522,10 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEAD_CODE_STRIPPING = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				MARKETING_VERSION = 1.3.6;
+				MARKETING_VERSION = 1.3.7;
 				PRODUCT_BUNDLE_IDENTIFIER = com.typofixr.app.tests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
@@ -555,7 +599,7 @@
 				CODE_SIGN_ENTITLEMENTS = "";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_TEAM = "";
 				ENABLE_HARDENED_RUNTIME = NO;
@@ -568,7 +612,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 1.3.6;
+				MARKETING_VERSION = 1.3.7;
 				PRODUCT_BUNDLE_IDENTIFIER = com.typofixr.app;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -581,10 +625,10 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEAD_CODE_STRIPPING = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				MARKETING_VERSION = 1.3.6;
+				MARKETING_VERSION = 1.3.7;
 				PRODUCT_BUNDLE_IDENTIFIER = com.typofixr.app.tests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;

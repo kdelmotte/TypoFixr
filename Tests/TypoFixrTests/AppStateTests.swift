@@ -4,16 +4,16 @@ import XCTest
 final class AppStateTests: XCTestCase {
     
     var appState: AppState!
+    private var environment: TestEnvironment!
     
-    override func setUp() {
-        super.setUp()
-        appState = AppState()
-        // Tests should not depend on persisted local history.
-        appState.clearHistory()
+    override func setUpWithError() throws {
+        environment = try TestEnvironment()
+        appState = environment.makeAppState()
     }
     
     override func tearDown() {
         appState = nil
+        environment = nil
         super.tearDown()
     }
     
@@ -106,5 +106,24 @@ final class AppStateTests: XCTestCase {
         )
         
         XCTAssertEqual(shortcut.displayString, "⇧⌘.")
+    }
+
+    func testClearingOneDatabaseDoesNotAffectAnother() throws {
+        let other = try TestEnvironment()
+        let otherState = other.makeAppState()
+        otherState.addCorrection(Correction(originalText: "kept", correctedText: "Kept"))
+        appState.addCorrection(Correction(originalText: "removed", correctedText: "Removed"))
+        appState.clearHistory()
+        XCTAssertEqual(other.database.getRecentCorrections().count, 1)
+        XCTAssertTrue(environment.database.getRecentCorrections().isEmpty)
+    }
+
+    func testSettingsAndCredentialsAreIsolated() throws {
+        let other = try TestEnvironment()
+        appState.keyboardShortcut = KeyboardShortcutConfig(keyCode: 3, modifiers: [.command])
+        appState.groqApiKey = "gsk_" + String(repeating: "a", count: 52)
+        XCTAssertNil(other.defaults.data(forKey: "keyboardShortcut"))
+        XCTAssertNil(try other.credentials.load(key: "groq_api_key"))
+        XCTAssertEqual(try environment.credentials.load(key: "groq_api_key"), appState.groqApiKey)
     }
 }

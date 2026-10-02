@@ -121,7 +121,7 @@ final class GroqResponseParsingTests: XCTestCase {
         }
     }
 
-    func testResolveCorrectionAcceptsCompleteOutputDespiteLengthFinishReason() throws {
+    func testResolveCorrectionRejectsEvenApparentlyCompleteLengthCappedOutput() throws {
         let original = "teh quik brwn fox jumps over teh lazy dog"
         let parsed = GroqService.ParsedCompletion(
             content: "the quick brown fox jumps over the lazy dog",
@@ -129,8 +129,7 @@ final class GroqResponseParsingTests: XCTestCase {
             outputTokens: 15,
             finishReason: "length"
         )
-        let result = try service.resolveCorrection(parsed: parsed, originalInput: original)
-        XCTAssertEqual(result.correctedText, "the quick brown fox jumps over the lazy dog")
+        XCTAssertThrowsError(try service.resolveCorrection(parsed: parsed, originalInput: original))
     }
 
     func testResolveCorrectionThrowsOnEmptyContent() {

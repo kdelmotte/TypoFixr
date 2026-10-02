@@ -21,22 +21,20 @@ test:
 	swift test --enable-xctest
 
 deploy:
-	@echo "==> Resetting onboarding..."
-	defaults write $(APP_DOMAIN) hasCompletedOnboarding -bool false
-	defaults delete $(APP_DOMAIN) keyboardShortcut 2>/dev/null || true
-	@echo "==> Stopping running instance..."
-	pkill -f TypoFixr || true
-	sleep 0.5
 	@echo "==> Building app bundle..."
 	$(DEVELOPER_DIR)/usr/bin/xcodebuild -project TypoFixr.xcodeproj -scheme TypoFixr -configuration Release -derivedDataPath "$(XCODE_DERIVED_DATA)" CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO build
+	@echo "==> Signing with $(CERT_NAME)..."
+	codesign --force --deep --sign "$(CERT_NAME)" "$(XCODE_RELEASE_APP)"
+	codesign --verify --deep --strict "$(XCODE_RELEASE_APP)"
+	@echo "==> Stopping running instance..."
+	pkill -f "$(APP_BINARY)" || true
+	sleep 0.5
 	@echo "==> Installing app bundle..."
 	mkdir -p $$(dirname "$(APP_BUNDLE)")
 	ditto "$(XCODE_RELEASE_APP)" "$(APP_BUNDLE)"
-	@echo "==> Signing with $(CERT_NAME)..."
-	codesign --force --deep --sign "$(CERT_NAME)" "$(APP_BUNDLE)"
 	@echo "==> Launching..."
 	open "$(APP_BUNDLE)"
-	@echo "Done. Accessibility permissions should persist across deploys."
+	@echo "Done. Onboarding, shortcuts, and Accessibility permissions are preserved."
 
 preflight-dmg:
 	./scripts/preflight_release_dmg.sh

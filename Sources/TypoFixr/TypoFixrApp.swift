@@ -6,7 +6,7 @@ struct TypoFixrApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
 
     init() {
-        TelemetryService.shared.initialize()
+        if !AppRuntime.isRunningTests { TelemetryService.shared.initialize() }
     }
 
     var body: some Scene {

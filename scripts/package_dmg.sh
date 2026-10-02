@@ -5,6 +5,7 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 APP_PATH="${APP_PATH:?APP_PATH is required}"
 OUTPUT_DMG_PATH="${OUTPUT_DMG_PATH:?OUTPUT_DMG_PATH is required}"
 DMG_TITLE="${DMG_TITLE:-Install TypoFixr}"
+APP_BUNDLE_NAME="${APP_BUNDLE_NAME:-TypoFixr.app}"
 BACKGROUND_DIR="${BACKGROUND_DIR:-$ROOT_DIR/packaging/dmg}"
 BACKGROUND_FILE="$BACKGROUND_DIR/background.png"
 BACKGROUND_FILE_2X="$BACKGROUND_DIR/background@2x.png"
@@ -26,13 +27,8 @@ if [ ! -f "$BACKGROUND_FILE" ] || [ ! -f "$BACKGROUND_FILE_2X" ]; then
   exit 1
 fi
 
-for volume in /Volumes/Install\ TypoFixr* /Volumes/TypoFixr*; do
-  [ -e "$volume" ] || continue
-  hdiutil detach "$volume" -force -quiet || true
-done
-
 mkdir -p "$TMP_DIR"
-ditto "$APP_PATH" "$TMP_DIR/TypoFixr.app"
+ditto "$APP_PATH" "$TMP_DIR/$APP_BUNDLE_NAME"
 cp "$BACKGROUND_FILE" "$TMP_DIR/background.png"
 cp "$BACKGROUND_FILE_2X" "$TMP_DIR/background@2x.png"
 
@@ -48,7 +44,7 @@ cat > "$SPEC_PATH" <<JSON
   "format": "UDZO",
   "filesystem": "HFS+",
   "contents": [
-    { "x": 180, "y": 242, "type": "file", "path": "TypoFixr.app" },
+    { "x": 180, "y": 242, "type": "file", "path": "$APP_BUNDLE_NAME" },
     { "x": 540, "y": 242, "type": "link", "path": "/Applications" }
   ]
 }

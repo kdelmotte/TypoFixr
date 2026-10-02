@@ -5,7 +5,7 @@ import Combine
 class AppDelegate: NSObject, NSApplicationDelegate {
     var statusItem: NSStatusItem!
     var popover: NSPopover!
-    var appState = AppState()
+    var appState = AppRuntime.makeAppState()
 
     private let accessibilityPermissionPollingInterval: TimeInterval = 1.0
     private let accessibilityPermissionPollingTimeout: TimeInterval = 90.0
@@ -17,6 +17,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var permissionPollingSource: AccessibilityGrantSource?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        guard !AppRuntime.isRunningTests else { return }
         // Set activation policy FIRST (menu bar app only)
         NSApp.setActivationPolicy(.accessory)
         TelemetryService.shared.track(.appLaunched)
@@ -228,7 +229,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
             let window = NSWindow(contentViewController: hostingController)
             window.identifier = NSUserInterfaceItemIdentifier("settings")
-            window.title = "TypoFixr Settings"
+            window.title = "\(AppHelpers.productName) Settings"
             window.styleMask = [.titled, .closable]
             window.setContentSize(NSSize(width: 520, height: 440))
             window.center()
@@ -261,7 +262,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         let window = NSWindow(contentViewController: hostingController)
         window.identifier = NSUserInterfaceItemIdentifier("onboarding")
-        window.title = "Welcome to TypoFixr"
+        window.title = "Welcome to \(AppHelpers.productName)"
         window.styleMask = [.titled, .closable]
         window.setContentSize(onboardingLayout.size)
         window.minSize = onboardingLayout.size

@@ -1,90 +1,46 @@
 import XCTest
 @testable import TypoFixr
 
-final class TextCorrectionServiceNormalizationTests: XCTestCase {
-
-    func testNotesParagraphFallbackStripsDashChecklistPrefix() {
-        let normalized = TextCorrectionService.normalizeCapturedTextForCorrection(
-            text: "- [ ] buy milk",
-            appBundleId: "com.apple.Notes",
-            source: .paragraphFallback
-        )
-
-        XCTAssertEqual(normalized, "buy milk")
+private actor CapturingCorrector: TextCorrecting {
+    private(set) var input: String?
+    func correctText(_ text: String, apiKey: String, languagePreference: String) async throws -> GroqService.CorrectionResult {
+        input = text
+        return .init(correctedText: text.replacingOccurrences(of: "teh", with: "the"), inputTokens: 1, outputTokens: 1)
     }
+}
 
-    func testNotesLineFallbackStripsDashPrefix() {
-        let normalized = TextCorrectionService.normalizeCapturedTextForCorrection(
-            text: "- buy milk",
-            appBundleId: "com.apple.Notes",
-            source: .lineFallback
-        )
-
-        XCTAssertEqual(normalized, "buy milk")
+@MainActor
+private final class PreservationEditor: CorrectionTextEditing {
+    let selection: CapturedSelection
+    var pasted: String?
+    init(_ text: String, source: TextCorrectionService.SelectionSource) {
+        selection = CapturedSelection(text: text, source: source, appBundleID: "com.apple.Notes")
     }
+    func captureSelection(characterLimit: Int) async throws -> CapturedSelection { selection }
+    func isSelectionCurrent(_ selection: CapturedSelection) -> Bool { true }
+    func replaceSelection(_ selection: CapturedSelection, with text: String) async throws { pasted = text }
+    func endSession() {}
+}
 
-    func testNotesParagraphFallbackStripsChecklistPrefix() {
-        let normalized = TextCorrectionService.normalizeCapturedTextForCorrection(
-            text: "[ ] buy milk",
-            appBundleId: "com.apple.Notes",
-            source: .paragraphFallback
-        )
-
-        XCTAssertEqual(normalized, "buy milk")
-    }
-
-    func testNotesExistingSelectionPreservesDashPrefix() {
-        let normalized = TextCorrectionService.normalizeCapturedTextForCorrection(
-            text: "- buy milk",
-            appBundleId: "com.apple.Notes",
-            source: .existingSelection
-        )
-
-        XCTAssertEqual(normalized, "- buy milk")
-    }
-
-    func testNonNotesFallbackPreservesDashPrefix() {
-        let normalized = TextCorrectionService.normalizeCapturedTextForCorrection(
-            text: "- buy milk",
-            appBundleId: "com.google.Chrome",
-            source: .paragraphFallback
-        )
-
-        XCTAssertEqual(normalized, "- buy milk")
-    }
-
-    func testNotesFallbackPreservesPlainSentence() {
-        let normalized = TextCorrectionService.normalizeCapturedTextForCorrection(
-            text: "buy milk today",
-            appBundleId: "com.apple.Notes",
-            source: .paragraphFallback
-        )
-
-        XCTAssertEqual(normalized, "buy milk today")
-    }
-
-    // MARK: - Multi-line Notes Text (Bug 3)
-
-    func testNotesMultiLineTextSkipsNormalization() {
-        // Multi-line text should be returned unchanged so GroqService's list-aware path handles it
-        let text = "- buy milk\n- call mom"
-        let normalized = TextCorrectionService.normalizeCapturedTextForCorrection(
-            text: text,
-            appBundleId: "com.apple.Notes",
-            source: .paragraphFallback
-        )
-
-        XCTAssertEqual(normalized, "- buy milk\n- call mom")
-    }
-
-    func testNotesSingleLineStillStrips() {
-        // Single-line Notes text should still strip the bullet prefix
-        let normalized = TextCorrectionService.normalizeCapturedTextForCorrection(
-            text: "- buy milk",
-            appBundleId: "com.apple.Notes",
-            source: .paragraphFallback
-        )
-
-        XCTAssertEqual(normalized, "buy milk")
+final class TextCorrectionServicePreservationTests: XCTestCase {
+    @MainActor
+    func testActualSelectedListMarkersArePreservedForEverySelectionStrategy() async throws {
+        for source in [TextCorrectionService.SelectionSource.existingSelection, .paragraphFallback, .lineFallback] {
+            for text in ["- teh text", "[ ] teh text", "- [ ] teh text", "  - teh text\n", "<teh>", "teh 👩‍💻"] {
+                let environment = try TestEnvironment()
+                let state = environment.makeAppState()
+                state.hasAccessibilityPermission = true
+                state.groqApiKey = "test-key"
+                state.securityWarningsEnabled = false
+                let api = CapturingCorrector()
+                let editor = PreservationEditor(text, source: source)
+                let service = TextCorrectionService(appState: state, corrector: api, editor: editor, isConnected: { true },
+                    feedback: .init(message: { _, _, _ in }, loading: {}, confirmSensitive: { _, _ in false }))
+                await service.performCorrection()
+                let input = await api.input
+                XCTAssertEqual(input, text)
+                XCTAssertEqual(editor.pasted, text.replacingOccurrences(of: "teh", with: "the"))
+            }
+        }
     }
 }

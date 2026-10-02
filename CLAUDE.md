@@ -1,114 +1,82 @@
-# TypoFixr
+# TypoFixr development notes
 
-## Git
-- Do NOT add `Co-Authored-By` trailers to commit messages.
+## Git and verification
 
-macOS menu bar app that fixes typos/grammar while preserving writing style. Uses Groq-hosted OpenAI GPT-OSS 20B (`openai/gpt-oss-20b`) with auto-detected language.
+- Do not add `Co-Authored-By` trailers to commit messages.
+- Follow `AGENTS.md`: after source or test changes, run `make build`, then `make deploy`, and report both results. Run the relevant tests before deployment. If the build fails, stop.
+- Work in `kdelmotte/TypoFixr`. Preserve its app identity, storage paths, telemetry project, MIT licensing, and public download links.
+- Unit tests are not proof of cross-app compatibility. Run real selection/copy/paste checks when changing the editing path, and record which editors were actually tested.
 
-## Tech Stack
-- Swift 5.9+, SwiftUI, macOS 13.0+
-- SQLite.swift (database), HotKey (global shortcuts)
-- API key stored in Keychain with service scope `com.typofixr.app` (Groq keys start with `gsk_`; legacy unscoped items are auto-migrated)
+## Product and stack
 
-## Structure
-```
-Sources/TypoFixr/
-├── TypoFixrApp.swift          # @main entry, Settings scene
-├── AppDelegate.swift          # Menu bar, windows, state coordination
-├── Models/
-│   ├── AppState.swift         # Central app state, settings, rate limiting
-│   └── Correction.swift       # Correction data model
-├── Services/
-│   ├── TextCorrectionService.swift  # Main correction flow (clipboard-based)
-│   ├── GroqService.swift       # API calls to Groq
-│   ├── HotkeyService.swift    # Global keyboard shortcut handling
-│   ├── SecurityService.swift  # Sensitive data detection
-│   ├── NetworkMonitor.swift   # Offline detection
-│   └── HUDService.swift       # Floating notification display
-├── Database/
-│   └── DatabaseManager.swift  # SQLite storage for history/stats
-└── Views/
-    ├── MenuBarView.swift      # Popover menu content
-    ├── SettingsView.swift     # Settings tabs
-    ├── OnboardingView.swift   # First-launch setup
-    └── HUDView.swift          # Floating notification view
-```
+macOS 13+ menu bar app, Swift 5.9+, SwiftUI/AppKit, SQLite.swift, HotKey, and TelemetryDeck. TypoFixr calls Groq-hosted `openai/gpt-oss-20b` directly using the user’s API key.
 
-## Key Behaviors
+Identity constants live in `AppHelpers`: `TypoFixr`, bundle/defaults/Keychain service `com.typofixr.app`, and `TypoFixr/typo_fixr.db` under Application Support. Internal module and Xcode target names remain `TypoFixr`.
 
-**Default Shortcut**: Cmd+Shift+D (keyCode 2), customizable in Settings
+## Architecture
 
-**Startup Flow**:
-1. First launch → Only onboarding (no menu bar)
-2. After "Get Started" → Menu bar icon + settings window
-3. Subsequent launches → Menu bar only
+- `TextCorrectionService` runs on the main actor, takes injected correction/editor/feedback dependencies, and acquires `isProcessing` before its first suspension. Its `defer` ends the editor session and releases the gate on every exit.
+- `ClipboardTextEditor` owns cross-app capture, revalidation, input monitoring, and replacement. `ClipboardTransaction` snapshots every available representation of every clipboard item and restores only while it still owns the clipboard.
+- `GroqService` orchestrates requests through `ChatCompletionTransport`. `GroqClient` owns URLSession/HTTP handling and completion parsing. Cancellation propagates without becoming a generic network failure.
+- `CorrectionPrompt`, `CorrectionChunker`, and `CorrectionOutputProcessor` keep prompt policy, splitting/reassembly, and output validation separate.
+- `CredentialStore` is injectable. `KeychainStore` scopes every operation by service and account, updates existing items in place, and reports failures. For `groq_api_key` and `device_id`, preserve upgrades from pre-1.3.0 by reading only the exact empty-service legacy item, saving the scoped item first, and then deleting that exact legacy item. Never omit the service filter or import credentials from another app.
+- `AppState` takes injected settings, database, and credentials. Tests use `TestEnvironment`; `AppRuntime` isolates the Xcode test host using `TYPOFIXR_TESTING=1`. Do not clear or query production persistence from tests.
 
-**Text Selection** (Clipboard-based, works in all apps):
-1. Existing selection (Cmd+C) → 2. Paragraph (Shift+Option+Up) → 3. Line (Shift+Cmd+Left) → 4. Prompt user
+## Editing contract
 
-Text is always selected backward from cursor position, then copied via clipboard, corrected, and pasted back.
+Default shortcut: **⌘⇧D**, customizable in Settings. Selection order:
 
-**Rate Limiting**: Client-side rate limiting is checked before each correction attempt.
+1. Copy the existing selection with Cmd+C.
+2. If no selected text is available, try Shift+Option+Up, then copy.
+3. If that fails, try Shift+Cmd+Left, then copy.
+4. Show a selection error if no text can be captured.
 
-**Security**: Detects sensitive data (passwords, credit cards, SSNs) and prompt injection patterns before sending to API.
+Fallbacks select backward from the cursor, not the entire field. The character limit is 5,000.
 
-**Correction Reliability**: Single-pass, no retries. Deterministic decoding (`temperature=0`, `top_p=1`, `n=1`), explicit `__NO_CHANGES__` contract, and a linear `max_completion_tokens` formula: `max(floor, chars + overhead)`. Budget floor is 4096 (low) or 16384 (medium). Reasoning effort scales with input length: `low` for < 300 chars (pattern matching, sub-1s) and `medium` for >= 300 chars (deeper analysis, ~1-2s). Budget overhead is 2048 at `low` and 3072 at `medium` to absorb extra hidden reasoning tokens. Requests include `reasoning_format: "hidden"` so chain-of-thought stays internal and only corrected text appears in `content`. Instructions are placed in the user message (not system prompt) per Groq's recommendation for reasoning models. If output matches input without `__NO_CHANGES__` marker, the result is accepted as "no corrections needed" (not an error). The `resolveCorrection` method is content-aware: it errors on `finish_reason: "length"` only when visible output is genuinely truncated (<50% of input length); otherwise it accepts the correction. Chunking uses a **flatten-and-throttle** architecture: `flattenIntoLeafChunks` eagerly splits text into all leaf-level chunks (no API calls), then a single `TaskGroup` dispatches all leaves with `maxConcurrentChunks` (10) throttle — no nested fan-out. `reassembleFromLeafResults` reconstructs the full text bottom-up using a `ReassemblyPlan`. Splitting priority: list detection → paragraph splitting (with paragraph-level merging of small adjacent paragraphs when combined <= `maxClauseChunkSize`) → sentence chunking → single-call fallback. Max 10 concurrent API calls total (not per-level); adjacent sentences are aggressively merged when combined <= 295 chars (`maxClauseChunkSize`); URLs containing `?` are protected via `NSDataDetector` URL-healing merge. Oversized chunks (>295 chars, e.g. run-on sentences) are split at clause boundaries (`, `, `; `, ` - `) near the midpoint, with a 40-char minimum fragment to prevent tiny splits; this is recursive so all sub-chunks end up <= 295 chars. Comma/semicolon attaches to the left sub-chunk; the space becomes the gap for exact reassembly. If no clause delimiter is found, the chunk stays as-is (falls back to medium reasoning). Single-sentence long text with no clause delimiters falls back to single-call with medium reasoning. Multi-line list text (bullets or numbered) is detected before sentence chunking: each item's text is corrected independently without its prefix, then reassembled with original prefixes and gaps (blank lines between items). This prevents the model from duplicating list markers or restructuring numbered lists. List detection requires >=2 items of the same type (all bullets or all numbered); mixed types or partial lists fall through to normal correction. The `__NO_CHANGES__` marker is checked on raw API content BEFORE `sanitizeOutput` to prevent `normalizeLeadingListArtifacts` from prepending list prefixes that corrupt the marker (e.g. `"  - __NO_CHANGES__"` ≠ `"__NO_CHANGES__"`). Boundary quotes (`"`, `\u{201C}`, `\u{201D}`, `\u{00AB}`, `\u{00BB}`) are restored post-sanitization via `restoreBoundaryQuotes` — the model strips leading quotes when they appear adjacent to XML tags; single quotes excluded due to apostrophe overlap. Notes multi-line text skips bullet-prefix stripping in `normalizeCapturedTextForCorrection` so `parseMultiLineList` can detect and handle the list structure. Text containing `\n\n` paragraph breaks (>= 300 chars total) is split into paragraphs first via `splitIntoParagraphs`. Small adjacent paragraphs are merged when combined <= `maxClauseChunkSize` (295) — e.g. "thanks,\n\nKevin" becomes one chunk. Each paragraph independently goes through list detection, sentence chunking, or single-call correction — all as leaf chunks in the single flat dispatch. Pure lists still take the fast list path first; single-paragraph text falls through to sentence chunking unchanged.
+Accessibility permission is required to send commands, but an Accessibility text role, selected range, or selected-text value must **not** be required for compatibility. Codex and other web editors may support Copy/Paste without exposing that metadata. When AX explicitly reports an empty selection, skip the initial copy to avoid block-copy behavior in editors such as Notion.
 
-**HUD Notifications**: Loading spinner during API calls, then success/error result. Bottom-center placement on the active display under cursor, with horizontal safety clamping.
+The clipboard capture waits for delayed copy handlers, then restores the original clipboard before the network request. Before replacement, copy the selection again and compare it to the original raw capture. Use available AX identity/range/content comparisons as additional evidence. Input activity or a changed destination stops replacement. Only a fallback selection may be reselected, followed by another copy comparison; an explicit user selection is never reconstructed blindly.
 
-**Other**: Use ⌘Z to undo corrections, Launch at Login works via SMAppService.
+Synthetic HID events include modifier `flagsChanged` events for Electron/Chromium compatibility and carry a marker so the input monitor can ignore the app's own commands. Keep clipboard restoration after paste long enough for the editor to consume it. Preserve later user clipboard changes.
 
-## Commands
+Notes normalization applies only to single-line fallback captures. Keep raw capture text for verification; normalize known list artifacts only for correction input. Multi-line list structure and explicit selections are preserved.
+
+No-change results do not send an arrow key or another editing command. Ordinary app undo handles replacements.
+
+## Model and formatting contract
+
+Requests use `temperature=0`, `top_p=1`, `n=1`, `reasoning_format=hidden`, and user-message instructions. Use `max_completion_tokens`, not `max_tokens`. Reasoning effort is low below 300 characters and medium otherwise. Token budgets use `max(floor, chars + overhead)` with floors 4096/16384 and overheads 2048/3072 for low/medium. HTTP timeout: 30 seconds. Requests are single-pass; HTTP 429 is reported as rate limiting.
+
+A completion must finish with `stop`. Reject `length` even if the text looks complete or contains `__NO_CHANGES__`; never accept a potentially truncated replacement. Check the no-change marker before output sanitization. Identical output is also a valid no-change result.
+
+Formatting cleanup must distinguish model-added wrappers from user-authored brackets, tags, quotes, list prefixes, and emoji joiners. Preserve boundary whitespace at replacement. Corrections within an apology must not be mistaken for a model refusal. Security checks can reject model-added dangerous content; sensitive-data and prompt-injection checks happen before API submission.
+
+## Chunking
+
+`CorrectionChunker` flattens all leaf chunks before API dispatch. `GroqService` runs one task group with at most ten requests in flight and reassembles results in source order. Do not add nested fan-out.
+
+Splitting order: multi-line lists, paragraphs, sentences, then clauses. `chunkingThreshold` and `mediumReasoningThreshold` are 300; `maxClauseChunkSize` is 295. Small adjacent chunks can merge up to that limit. Clause delimiters are comma-space, semicolon-space, and space-dash-space, with a 40-character minimum fragment. Keep sentence gaps and list prefixes for exact reassembly. URL-healing prevents `NLTokenizer` splits inside URLs containing `?`.
+
+## UI and persistence
+
+- First launch shows onboarding; completion creates the menu bar and Settings. Later launches show the menu bar only.
+- Call `NSApp.setActivationPolicy(.accessory)` before menu-bar setup.
+- `AppDelegate` manages Settings/onboarding windows; shortcut recording uses a local event monitor and Escape cancels it.
+- `HUDService.showLoading` stays visible until a result replaces it. Keep HUD windows from stealing the destination's focus.
+- Store/invalidate timers. `NWPathMonitor` must be recreated after cancellation.
+- Recent in-memory history shows ten entries; the SQLite database retains history until cleared.
+- The existing TelemetryDeck project is retained. App-defined signals contain categories and outcomes, not correction text or credentials. Tests skip telemetry initialization.
+
+## Commands and release work
+
 ```bash
-make build                                # Fast local build (debug)
-make release                              # Release build
-make test                                 # Run all tests (XCTest)
-make deploy                               # Build release, reset onboarding, sign, launch
-bash scripts/setup-signing.sh             # One-time: create TypoFixrDev signing cert
+make build
+make test
+make deploy
+make preflight-dmg
+bash scripts/validate_release.sh v1.3.7
 ```
 
-**Deploy always resets to onboarding** — this is intentional. After any code change, always `make deploy` (never just copy the binary manually). The Makefile sets `DEVELOPER_DIR` to Xcode and uses the `TypoFixrDev` certificate for stable signing.
+Deployment signs and verifies before replacing the installed app. It preserves onboarding and shortcuts. Use `TypoFixrDev` for local deployments to keep a stable signing identity; Developer ID signing and notarization are separate distribution steps. Xcode is selected by the Makefile because Command Line Tools alone do not supply XCTest. Swift 6 toolchains need `--enable-xctest` for this suite.
 
-## Gotchas
-- `NSApp.setActivationPolicy(.accessory)` must be called BEFORE `setupMenuBar()`
-- Shortcut recorder uses `NSEvent.addLocalMonitorForEvents`, Escape cancels
-- Settings window managed via `AppDelegate.showSettings()` (not SwiftUI selector)
-- Windows (settings, onboarding) created manually in AppDelegate with fixed sizes
-- Clipboard fallback delays: ~0.01-0.08s per operation (see timing constants in TextCorrectionService)
-- Only select text BEFORE cursor (backward), never after
-- Whitespace-only existing selections (e.g. accidental trailing space) are treated as no selection, falling through to paragraph/line fallbacks
-- Timer references must be stored and invalidated to prevent leaks
-- GPT-OSS requests must use `max_completion_tokens` (not `max_tokens`); reasoning tokens are hidden but count toward this budget
-- Token budget uses linear formula: `max(floor, chars + overhead)` where floor is 4096 (low) or 16384 (medium), overhead is 2048 (low) or 3072 (medium reasoning effort, >= 300 chars)
-- Groq defaults `reasoning_format` to `"raw"` which dumps `<think>` tags into visible output; always send `reasoning_format: "hidden"`
-- Instructions go in user message (not system prompt) — Groq recommends avoiding system prompts for reasoning models
-- API timeout is 30 seconds (tighter budgets keep latency well within this)
-- `NetworkMonitor` must cancel/recreate `NWPathMonitor` on restart (it cannot be restarted once cancelled)
-- `NSApp.activate(ignoringOtherApps:)` is deprecated on macOS 14+; use availability check
-- Shared helpers (`openAccessibilitySettings`, `feedbackEmail`) live in `AppHelpers` enum in AppState.swift
-- `KeyboardShortcutConfig.keyCodeDisplayNames` is the single source of truth for key code → display string mapping
-- `TextCorrectionService` uses `defer { appState.isProcessing = false }` — don't manually reset `isProcessing` in early returns
-- `xcode-select` points to Command Line Tools (no XCTest); Makefile sets `DEVELOPER_DIR` to Xcode for XCTest support
-- Swift 6.x defaults to Swift Testing discovery; `--enable-xctest` flag required for XCTest-based tests
-- App is signed with local `TypoFixrDev` certificate (not ad-hoc) to preserve accessibility permissions across deploys. Run `bash scripts/setup-signing.sh` once on a new machine
-- Deploy (`make deploy`) always resets onboarding — don't skip this step
-- `NLTokenizer` requires `import NaturalLanguage` (Apple framework, no package dependency)
-- `chunkingThreshold` (300) must stay in sync with `mediumReasoningThreshold`
-- `maxClauseChunkSize` (295) must stay below `mediumReasoningThreshold` (300) to ensure all chunks use low reasoning
-- Clause delimiters (`, `, `; `, ` - `) split oversized chunks; comma/semicolon attaches to left, space becomes gap
-- `minClauseFragment` (40) prevents clause splits from creating trivially small left fragments
-- NLTokenizer splits URLs at `?` — URL-healing merge via `NSDataDetector` fixes this
-- Sentence text is right-trimmed before API; trailing whitespace folded into gaps for exact reassembly
-- `sanitizeOutput` strips ALL trailing whitespace (spaces, tabs, newlines, carriage returns) — model-added trailing `\n` are artifacts, not user content
-- Multi-line list detection (`parseMultiLineList`) runs before sentence chunking; each item corrected without prefix to prevent model mangling list structure
-- `normalizeLeadingListArtifacts` applies per-line when original and output have matching line counts; falls back to single-line otherwise
-- `__NO_CHANGES__` marker must be checked on raw content BEFORE `sanitizeOutput` — list artifact normalization can prepend prefixes that corrupt the marker
-- Notes single-line dash stripping is a known trade-off: can't distinguish "Notes bullet artifact" from "user-typed dash" for single-line text
-- `restoreBoundaryQuotes` only handles double quotes and guillemets; single quotes (`'`) excluded due to apostrophe false positives on corrected contractions
-- `simulateKeyPress` sends `flagsChanged` events for modifier keys before/after the main key — required for Electron/Chromium apps (Notion) to recognize selection shortcuts; harmless for native apps
-- `checkExistingSelection` uses AX pre-check (`hasActiveTextSelection()`) before Cmd+C to filter block-copy false positives in Electron apps (Notion copies entire block on Cmd+C when nothing is selected)
-- `ensureSelectionBeforePaste` uses a direct AX check (~1-5ms) instead of a sentinel probe to detect lost selection before paste; re-selects using original strategy if needed; skips for `.existingSelection`
-- `HUDService.showLoading` has no auto-dismiss timer — the loading HUD stays visible until replaced by a subsequent `show()` call
-
-## AI Prompt Strategy
-Fix only clear errors, use sentence context to disambiguate typos (e.g., "form" vs "from"), preserve tone/style, don't rephrase, keep informal language, preserve emojis/formatting, and return ONLY corrected text. If nothing needs correction, return `__NO_CHANGES__`.
+See `RELEASING.md` for the release workflow, required secret names, and version checks. Do not claim Codex or another named editor passed merely because a synthetic native/WebKit test passed.
