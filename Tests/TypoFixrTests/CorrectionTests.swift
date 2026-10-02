@@ -52,3 +52,13 @@ final class CorrectionTests: XCTestCase {
         XCTAssertEqual(correction.originalText.components(separatedBy: "\n").count, 3)
     }
 }
+
+
+extension CorrectionTests {
+    func testRecentCorrectionsUseJustNowIncludingSmallClockSkew() {
+        for offset in [0.0, -30, 2] {
+            let correction = Correction(timestamp: Date().addingTimeInterval(offset), originalText: "teh", correctedText: "the")
+            XCTAssertEqual(correction.timeAgo, "Just now")
+        }
+    }
+}

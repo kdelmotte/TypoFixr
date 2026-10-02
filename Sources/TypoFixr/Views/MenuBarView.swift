@@ -1,287 +1,283 @@
 import SwiftUI
+import AppKit
 
 struct MenuBarView: View {
+    static let width: CGFloat = 360
     @EnvironmentObject var appState: AppState
     @Environment(\.openURL) var openURL
-    
+    @State private var confirmsClearHistory = false
+    var scrollsContent = true
+
     var body: some View {
+        Group {
+            if scrollsContent {
+                ScrollView(.vertical) { content }
+            } else {
+                content.fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .frame(width: Self.width)
+        .alert("Clear all local history?", isPresented: $confirmsClearHistory) {
+            Button("Cancel", role: .cancel) { }
+            Button("Clear History", role: .destructive) { appState.clearHistory() }
+        } message: {
+            Text("This removes all saved corrections and usage counts on this Mac. Your API key and settings stay saved.")
+        }
+    }
+
+    private var content: some View {
         VStack(spacing: 0) {
-            // Header
-            headerSection
-            
+            header
             Divider()
-            
-            // Recent Corrections
-            if !appState.correctionHistory.isEmpty {
-                recentCorrectionsSection
-                Divider()
-            }
-            
-            // Status Section
-            statusSection
-            
+            history
             Divider()
-            
-            // Actions
-            actionsSection
+            status
+            Divider()
+            actions
         }
-        .frame(width: 320)
     }
-    
-    // MARK: - Header
-    private var headerSection: some View {
-        HStack {
-            TypoFixrMark(size: 34)
-            
-            VStack(alignment: .leading, spacing: 2) {
-                Text(AppHelpers.productName)
-                    .font(.headline)
-                
-                Text("Press \(appState.keyboardShortcut.displayString) to instantly fix text")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
+
+    private var header: some View {
+        HStack(spacing: 12) {
+            TypoFixrMark(size: 36)
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 5) {
+                Text(AppHelpers.productName).font(.system(size: 16, weight: .semibold))
+                HStack(spacing: 7) {
+                    Text("Correct text").font(.caption).foregroundColor(.secondary)
+                    Text(appState.keyboardShortcut.displayString)
+                        .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                        .padding(.horizontal, 6).padding(.vertical, 3)
+                        .background(Color.primary.opacity(0.06), in: RoundedRectangle(cornerRadius: 5))
+                        .help("Change this in Settings → Shortcut")
+                }
             }
-            
-            Spacer()
-            
+            Spacer(minLength: 0)
             if appState.isProcessing {
-                ProgressView()
-                    .scaleEffect(0.7)
+                ProgressView().controlSize(.small).accessibilityLabel("Correcting text")
             }
         }
-        .padding()
+        .padding(16)
     }
-    
-    // MARK: - Recent Corrections
-    private var recentCorrectionsSection: some View {
+
+    private var history: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
-                Text("Recent Corrections")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-
+                Text("Recent corrections").font(.caption.weight(.medium)).foregroundColor(.secondary)
                 Spacer()
-
-                Button("Clear") {
-                    appState.clearHistory()
+                if !appState.correctionHistory.isEmpty {
+                    Button("Clear History…") { confirmsClearHistory = true }
+                        .buttonStyle(.borderless).font(.caption)
+                        .help("Clear all saved corrections and usage counts")
                 }
-                .buttonStyle(.borderless)
-                .font(.caption2)
-                .foregroundColor(.secondary)
             }
-            .padding(.horizontal)
-            .padding(.top, 8)
-            
-            ForEach(appState.correctionHistory.prefix(3)) { correction in
-                CorrectionRow(correction: correction)
+            .padding(.horizontal, 16)
+            .padding(.top, 12)
+
+            if appState.correctionHistory.isEmpty {
+                VStack(alignment: .leading, spacing: 5) {
+                    Text("No corrections yet").font(.subheadline.weight(.medium))
+                    Text("Press \(appState.keyboardShortcut.displayString) in a text field. Your recent fixes will appear here.")
+                        .font(.caption).foregroundColor(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .padding(.horizontal, 16).padding(.vertical, 8)
+            } else {
+                ForEach(appState.correctionHistory.prefix(3)) { correction in
+                    CorrectionRow(correction: correction)
+                }
             }
         }
-        .padding(.bottom, 8)
+        .padding(.bottom, 12)
     }
-    
-    // MARK: - Status Section
-    private var statusSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
+
+    private var status: some View {
+        VStack(alignment: .leading, spacing: 12) {
             if !appState.hasAccessibilityPermission {
-                HStack {
-                    Image(systemName: "exclamationmark.triangle.fill")
-                        .foregroundColor(.orange)
-                    
-                    VStack(alignment: .leading) {
-                        Text("Permission Required")
-                            .font(.caption)
-                            .fontWeight(.medium)
-                        Text("Grant Accessibility access to use")
-                            .font(.caption2)
-                            .foregroundColor(.secondary)
-                    }
-                    
-                    Spacer()
-                    
-                    Button("Grant") {
+                setupNotice(title: "Accessibility access needed", detail: "Allow TypoFixr in System Settings to correct text in your apps.", icon: "hand.raised.fill") {
+                    Button("Open Accessibility Settings…") {
                         AppHelpers.requestAccessibilityPermission(source: .menuBar)
                     }
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.small)
                 }
-                .padding(.horizontal)
-                .padding(.vertical, 8)
-            }
-            
-            if let error = appState.lastError {
-                HStack {
-                    Image(systemName: "xmark.circle.fill")
-                        .foregroundColor(.red)
-                    
-                    Text(error)
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                        .lineLimit(2)
-                    
-                    Spacer()
+            } else if !appState.hasValidApiKey {
+                setupNotice(title: "Connect your Groq key", detail: "Add your API key to start correcting text.", icon: "key.fill") {
+                    Button("Add API Key…") { SettingsSection.api.open() }
                 }
-                .padding(.horizontal)
-                .padding(.vertical, 4)
             }
-            
-            // Stats
+
+            if let error = appState.lastError,
+               !(error == "Accessibility permission required" && !appState.hasAccessibilityPermission) {
+                Label {
+                    Text(error).font(.caption).fixedSize(horizontal: false, vertical: true)
+                } icon: {
+                    Image(systemName: "exclamationmark.circle.fill").foregroundColor(.orange)
+                }
+            }
+
             let stats = appState.databaseManager.getStatistics()
-            HStack {
+            HStack(spacing: 10) {
                 StatBadge(label: "Today", value: "\(stats.correctionsToday)")
-                StatBadge(label: "This Month", value: "\(stats.correctionsThisMonth)")
+                StatBadge(label: "This month", value: "\(stats.correctionsThisMonth)")
             }
-            .padding(.horizontal)
-            .padding(.vertical, 8)
         }
+        .padding(16)
     }
-    
-    // MARK: - Actions
-    private var actionsSection: some View {
-        VStack(spacing: 0) {
-            MenuButton(title: "Settings...", systemImage: "gear") {
-                NotificationCenter.default.post(name: NSNotification.Name("ShowSettings"), object: nil)
-            }
-            
+
+    private func setupNotice<Action: View>(title: String, detail: String, icon: String,
+                                          @ViewBuilder action: () -> Action) -> some View {
+        VStack(alignment: .leading, spacing: 9) {
+            Label(title, systemImage: icon).font(.caption.weight(.semibold)).foregroundColor(.orange)
+            Text(detail).font(.caption).foregroundColor(.secondary).fixedSize(horizontal: false, vertical: true)
+            action().buttonStyle(.bordered).controlSize(.small)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var actions: some View {
+        VStack(spacing: 2) {
+            MenuButton(title: "Settings…", systemImage: "gearshape", shortcut: "⌘,") { SettingsSection.general.open() }
+                .keyboardShortcut(",", modifiers: .command)
             MenuButton(title: "Send Feedback", systemImage: "envelope") {
-                let subject = "\(AppHelpers.productName) Feedback"
-                let encodedSubject = subject.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
-                if let url = URL(string: "mailto:\(AppHelpers.feedbackEmail)?subject=\(encodedSubject)") {
-                    openURL(url)
-                }
+                let subject = "\(AppHelpers.productName) Feedback".addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
+                if let url = URL(string: "mailto:\(AppHelpers.feedbackEmail)?subject=\(subject)") { openURL(url) }
             }
-            
-            Divider()
-                .padding(.vertical, 4)
-            
-            MenuButton(title: "Quit \(AppHelpers.productName)", systemImage: "power") {
+            Divider().padding(.vertical, 4)
+            MenuButton(title: "Quit \(AppHelpers.productName)", systemImage: "power", shortcut: "⌘Q") {
                 NSApplication.shared.terminate(nil)
             }
+            .keyboardShortcut("q", modifiers: .command)
         }
-        .padding(.vertical, 8)
+        .padding(8)
     }
-    
 }
 
-// MARK: - Correction Row
 struct CorrectionRow: View {
     let correction: Correction
-    @EnvironmentObject var appState: AppState
-    @Environment(\.openURL) var openURL
     @State private var isHovered = false
+    @State private var showsDetail = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
+        Button { showsDetail = true } label: {
+            HStack(alignment: .center, spacing: 10) {
+                VStack(alignment: .leading, spacing: 5) {
+                    HStack {
+                        Text(correction.originalText).font(.caption).foregroundColor(.secondary).lineLimit(1)
+                        Spacer(minLength: 4)
+                        Text(correction.timeAgo).font(.caption2).foregroundColor(.secondary).fixedSize()
+                    }
+                    Label {
+                        Text(correction.correctedText).font(.system(size: 13)).foregroundColor(.primary).lineLimit(2)
+                    } icon: {
+                        Image(systemName: "arrow.turn.down.right").font(.caption).foregroundColor(.accentColor)
+                    }
+                }
+                Image(systemName: "chevron.right").font(.system(size: 10, weight: .semibold)).foregroundColor(.secondary)
+            }
+            .padding(.horizontal, 10).padding(.vertical, 9)
+            .background(isHovered ? Color.primary.opacity(0.06) : .clear, in: RoundedRectangle(cornerRadius: 8))
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .padding(.horizontal, 6)
+        .help("View the full correction, copy text, or send feedback")
+        .accessibilityLabel("View correction: \(correction.correctedText)")
+        .onHover { isHovered = $0 }
+        .popover(isPresented: $showsDetail, arrowEdge: .leading) {
+            CorrectionDetailView(correction: correction)
+        }
+    }
+}
+
+struct CorrectionDetailView: View {
+    let correction: Correction
+    @Environment(\.openURL) private var openURL
+    @State private var hasCopied = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
             HStack {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(correction.truncatedOriginal)
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-
-                    HStack(spacing: 4) {
-                        Image(systemName: "arrow.right")
-                            .font(.caption2)
-                            .foregroundColor(.accentColor)
-
-                        Text(correction.truncatedCorrected)
-                            .font(.caption)
-                            .foregroundColor(.primary)
-                    }
-                }
-
+                Text("Correction").font(.headline)
                 Spacer()
-
-                VStack(alignment: .trailing, spacing: 2) {
-                    Text(correction.timeAgo)
-                        .font(.caption2)
-                        .foregroundColor(.secondary)
-
-                    if isHovered {
-                        Button("Feedback") {
-                            sendFeedback()
-                        }
-                        .buttonStyle(.borderless)
-                        .font(.caption2)
-                    }
+                Text(correction.timeAgo).font(.caption).foregroundColor(.secondary)
+            }
+            ScrollView {
+                VStack(alignment: .leading, spacing: 18) {
+                    textBlock("Original", text: correction.originalText)
+                    Divider()
+                    textBlock("Corrected", text: correction.correctedText)
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .frame(maxHeight: 300)
+            Divider()
+            HStack {
+                Button(hasCopied ? "Copied" : "Copy corrected text") {
+                    NSPasteboard.general.clearContents()
+                    hasCopied = NSPasteboard.general.setString(correction.correctedText, forType: .string)
+                }
+                .buttonStyle(.bordered)
+                Spacer()
+                Button("Send Feedback") { sendFeedback() }.buttonStyle(.borderless)
             }
         }
-        .padding(.horizontal)
-        .padding(.vertical, 6)
-        .background(isHovered ? Color.gray.opacity(0.1) : Color.clear)
-        .cornerRadius(4)
-        .onHover { hovering in
-            isHovered = hovering
+        .padding(18)
+        .frame(width: 400)
+    }
+
+    private func textBlock(_ label: String, text: String) -> some View {
+        VStack(alignment: .leading, spacing: 7) {
+            Text(label).font(.caption.weight(.semibold)).foregroundColor(.secondary)
+            Text(text).font(.body).textSelection(.enabled).fixedSize(horizontal: false, vertical: true)
         }
     }
 
     private func sendFeedback() {
         let subject = "\(AppHelpers.productName) Correction Feedback"
-        let body = """
-        Original text:
-        \(correction.originalText)
-
-        \(AppHelpers.productName) changed it to:
-        \(correction.correctedText)
-
-        What I expected instead:
-        [Please describe what you expected]
-
-        """
-
-        let encodedSubject = subject.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
-        let encodedBody = body.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
-
-        if let url = URL(string: "mailto:\(AppHelpers.feedbackEmail)?subject=\(encodedSubject)&body=\(encodedBody)") {
-            openURL(url)
-        }
+        let body = "Original text:\n\(correction.originalText)\n\nCorrected text:\n\(correction.correctedText)\n\nWhat I expected instead:\n"
+        var components = URLComponents()
+        components.scheme = "mailto"
+        components.path = AppHelpers.feedbackEmail
+        components.queryItems = [URLQueryItem(name: "subject", value: subject), URLQueryItem(name: "body", value: body)]
+        if let url = components.url { openURL(url) }
     }
 }
 
-// MARK: - Menu Button
 struct MenuButton: View {
     let title: String
     let systemImage: String
+    var shortcut: String? = nil
     let action: () -> Void
-    
     @State private var isHovered = false
-    
+
     var body: some View {
         Button(action: action) {
-            HStack {
-                Image(systemName: systemImage)
-                    .frame(width: 20)
+            HStack(spacing: 10) {
+                Image(systemName: systemImage).frame(width: 20).foregroundColor(.secondary)
                 Text(title)
                 Spacer()
+                if let shortcut { Text(shortcut).font(.caption).foregroundColor(.secondary) }
             }
-            .padding(.horizontal)
-            .padding(.vertical, 6)
-            .background(isHovered ? Color.gray.opacity(0.1) : Color.clear)
+            .padding(.horizontal, 10).padding(.vertical, 8)
+            .background(isHovered ? Color.primary.opacity(0.06) : .clear, in: RoundedRectangle(cornerRadius: 7))
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .onHover { hovering in
-            isHovered = hovering
-        }
+        .onHover { isHovered = $0 }
     }
 }
 
-// MARK: - Stat Badge
 struct StatBadge: View {
     let label: String
     let value: String
-    
     var body: some View {
-        VStack(spacing: 2) {
-            Text(value)
-                .font(.headline)
-                .fontWeight(.semibold)
-            Text(label)
-                .font(.caption2)
-                .foregroundColor(.secondary)
+        HStack(alignment: .firstTextBaseline, spacing: 6) {
+            Text(value).font(.system(size: 16, weight: .semibold, design: .rounded)).monospacedDigit()
+            Text(label).font(.caption).foregroundColor(.secondary)
+            Spacer(minLength: 0)
         }
+        .padding(10)
         .frame(maxWidth: .infinity)
-        .padding(.vertical, 8)
-        .background(Color.gray.opacity(0.1))
-        .cornerRadius(8)
+        .background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 8))
+        .accessibilityElement(children: .combine)
     }
 }

@@ -29,7 +29,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // Listen for show settings notification
         NotificationCenter.default.addObserver(
             self,
-            selector: #selector(showSettings),
+            selector: #selector(showSettings(_:)),
             name: NSNotification.Name("ShowSettings"),
             object: nil
         )
@@ -48,6 +48,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in
                 self?.updateMenuBarIcon()
+            }
+            .store(in: &cancellables)
+
+        appState.objectWillChange
+            .debounce(for: .milliseconds(30), scheduler: RunLoop.main)
+            .sink { [weak self] in
+                guard let self, self.popover?.isShown == true else { return }
+                self.refreshPopoverSize()
             }
             .store(in: &cancellables)
 
@@ -125,12 +133,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         updateMenuBarIcon()
 
         popover = NSPopover()
-        popover.contentSize = NSSize(width: 320, height: 400)
+        popover.contentSize = NSSize(width: MenuBarView.width, height: 400)
         popover.behavior = .transient
-        popover.contentViewController = NSHostingController(
-            rootView: MenuBarView()
-                .environmentObject(appState)
-        )
+        let controller = NSHostingController(rootView: MenuBarView().environmentObject(appState))
+        controller.sizingOptions = []
+        popover.contentViewController = controller
     }
     
     @objc func togglePopover() {
@@ -139,12 +146,25 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 popover.performClose(nil)
             } else {
                 checkAccessibilityPermission()
+                refreshPopoverSize()
                 popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
                 popover.contentViewController?.view.window?.makeKey()
             }
         }
     }
     
+    private func refreshPopoverSize() {
+        let controller = NSHostingController(rootView: MenuBarView(scrollsContent: false).environmentObject(appState))
+        controller.sizingOptions = []
+        let measured = controller.sizeThatFits(in: CGSize(width: MenuBarView.width, height: CGFloat.greatestFiniteMagnitude))
+        let visibleHeight = statusItem?.button?.window?.screen?.visibleFrame.height ?? NSScreen.main?.visibleFrame.height ?? 800
+        popover?.contentSize = Self.menuPopoverSize(contentHeight: measured.height, visibleHeight: visibleHeight)
+    }
+
+    static func menuPopoverSize(contentHeight: CGFloat, visibleHeight: CGFloat) -> NSSize {
+        NSSize(width: MenuBarView.width, height: min(ceil(contentHeight), max(100, min(680, visibleHeight - 48))))
+    }
+
     private func checkAccessibilityPermission() {
         let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: false]
         let trusted = AXIsProcessTrustedWithOptions(options as CFDictionary)
@@ -188,11 +208,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var onboardingWindow: NSWindow?
     private var settingsWindow: NSWindow?
 
-    @objc func showSettings() {
-        showSettingsWindow(origin: .menuBar)
+    @objc func showSettings(_ notification: Notification) {
+        let section = SettingsSection(rawValue: notification.object as? String ?? "") ?? .general
+        showSettingsWindow(origin: .menuBar, section: section)
     }
 
-    private func showSettingsWindow(origin: SettingsOpenSource) {
+    private func showSettingsWindow(origin: SettingsOpenSource, section: SettingsSection = .general) {
         // Don't show settings if a security alert is being displayed
         guard !appState.isShowingSecurityAlert else { return }
 
@@ -207,7 +228,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             settingsWindow?.close()
             settingsWindow = nil
 
-            let settingsView = SettingsView()
+            let settingsView = SettingsView(initialSection: section)
                 .environmentObject(appState)
 
             let hostingController = NSHostingController(rootView: settingsView)
@@ -215,8 +236,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             let window = NSWindow(contentViewController: hostingController)
             window.identifier = NSUserInterfaceItemIdentifier("settings")
             window.title = "\(AppHelpers.productName) Settings"
-            window.styleMask = [.titled, .closable]
-            window.setContentSize(NSSize(width: 520, height: 440))
+            window.styleMask = [.titled, .closable, .resizable]
+            window.setContentSize(NSSize(width: 600, height: 520))
+            window.contentMinSize = NSSize(width: 560, height: 460)
             window.center()
 
             settingsWindow = window

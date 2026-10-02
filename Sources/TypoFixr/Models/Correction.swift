@@ -46,7 +46,9 @@ struct Correction: Identifiable, Codable {
     }()
 
     var timeAgo: String {
-        Self.timeAgoFormatter.localizedString(for: timestamp, relativeTo: Date())
+        let now = Date()
+        if now.timeIntervalSince(timestamp) < 60 { return "Just now" }
+        return Self.timeAgoFormatter.localizedString(for: timestamp, relativeTo: now)
     }
     
     private func truncate(_ text: String, maxLength: Int) -> String {

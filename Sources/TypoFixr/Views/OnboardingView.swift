@@ -152,6 +152,7 @@ struct OnboardingShell: View {
 
                     Text(step.title)
                         .font(.system(size: 28, weight: .semibold, design: .rounded))
+                        .fixedSize(horizontal: false, vertical: true)
 
                     Text(step.subtitle)
                         .font(.callout)
@@ -290,7 +291,7 @@ struct OnboardingShell: View {
                 Text("Paste your Groq API key")
                     .font(.headline)
 
-                Text("Paste the full key from console.groq.com/keys. TypoFixr sends correction requests directly to Groq with your key. We do not proxy traffic or create an account for this version.")
+                Text("Paste your full key from Groq to enable corrections. It is stored in Keychain on this Mac and used only when you request a correction.")
                     .font(.callout)
                     .foregroundColor(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -311,6 +312,7 @@ struct OnboardingShell: View {
                     }
                     .buttonStyle(.borderless)
                     .help(snapshot.showsAPIKey ? "Hide API key" : "Reveal API key")
+                    .accessibilityLabel(snapshot.showsAPIKey ? "Hide API key" : "Reveal API key")
                 }
 
                 InlineValidationRow(
@@ -354,6 +356,7 @@ struct OnboardingShell: View {
             Text(footerHint)
                 .font(.caption)
                 .foregroundColor(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
 
             Spacer()
 

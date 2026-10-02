@@ -100,8 +100,8 @@ Click the menu bar icon > Settings:
 |-----|---------|
 | **General** | Launch at Login |
 | **Shortcut** | Change the trigger shortcut (default `⌘⇧D`) |
-| **API** | Enter your Groq API key |
-| **Security** | Toggle warnings and clear local history |
+| **API Key** | Enter your Groq API key |
+| **Privacy** | Toggle warnings and clear local history |
 | **About** | Version info and feedback link |
 
 ## Security
@@ -118,9 +118,9 @@ AI responses are **validated on return** for suspicious patterns (script tags, s
 
 - **User-triggered only**: Text is only accessed when you press the shortcut
 - **Direct processing**: Selected text is sent directly from your Mac to Groq using your API key
-- **Local storage**: Original and corrected text, source app identifiers, and token usage are stored in `~/Library/Application Support/TypoFixr/typo_fixr.db`. The menu shows the latest ten corrections; history persists until cleared.
+- **Local storage**: Original and corrected text, source app identifiers, and token usage are stored in `~/Library/Application Support/TypoFixr/typo_fixr.db`. The menu previews the latest three corrections; click a row to read or copy the full text. History persists until cleared.
 - **Secure key storage**: Your API key is stored in macOS Keychain under `com.typofixr.app`. Legacy keys created before 1.3.0 migrate from the exact empty-service entry; other apps’ credentials are not imported or deleted.
-- **Clear anytime**: Delete all history from Settings > Security
+- **Clear anytime**: Delete all history from Settings > Privacy
 - **Telemetry**: Existing TelemetryDeck configuration is retained. App-defined event payloads report lifecycle and correction outcomes, without correction text or API keys; the SDK supplies its standard metadata.
 
 ## Development
@@ -228,7 +228,7 @@ Development and Developer ID builds have different signing identities. An enable
 
 ### API errors
 
-1. Verify your API key is correct in Settings > API (should start with `gsk_`)
+1. Verify your API key is correct in Settings > API Key (should start with `gsk_`)
 2. Check your Groq account is active
 3. Ensure you have internet connectivity
 
@@ -258,6 +258,10 @@ Contributions are welcome! Please open an issue or pull request.
 ## Changelog
 
 ### v1.3.7
+- Fix clipped checking/finished HUD captions with measured, wrapping layouts; keep feedback visible without taking keyboard focus
+- Add full correction details and a copy action to recent-history rows, with visible navigation and hover feedback
+- Confirm history deletion, clarify setup actions, and keep long menu content scrollable
+- Improve shortcut recording, API-key guidance, onboarding text wrapping, and resizable Settings
 - Restore visible menu-bar icons in every state, with a fallback when a system symbol is unavailable
 - Resume setup at Accessibility or API Key when an installed update still needs access; keep saved preferences and credentials
 - Refresh permission status when opening the menu or using the shortcut, and clear stale permission errors after access is restored

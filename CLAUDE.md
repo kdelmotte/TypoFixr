@@ -62,7 +62,8 @@ Splitting order: multi-line lists, paragraphs, sentences, then clauses. `chunkin
 - First launch shows onboarding; completion creates the menu bar and Settings. Later launches keep the menu bar and resume Accessibility or API Key setup if a prerequisite is missing. Use an explicit completion callback during recovery because the saved onboarding flag is already true.
 - Call `NSApp.setActivationPolicy(.accessory)` before menu-bar setup. Every icon state must have a non-nil template image; use `TypoFixrBranding.menuBarImage` with its drawn fallback. Refresh process trust before opening the menu and before a correction.
 - `AppDelegate` manages Settings/onboarding windows; shortcut recording uses a local event monitor and Escape cancels it.
-- `HUDService.showLoading` stays visible until a result replaces it. Keep HUD windows from stealing the destination's focus.
+- `HUDService.showLoading` stays visible until a result replaces it. Measure the text at a known width before attaching it to a reused window. Keep the HUD nonactivating, click-through, and visible while another app is active; guard delayed dismissals against hiding a newer presentation.
+- The menu previews three corrections and opens full text in a detail popover. Bound its height to the visible screen and scroll overflow. Confirm history deletion. `SettingsSection` routes setup actions to the appropriate tab.
 - Store/invalidate timers. `NWPathMonitor` must be recreated after cancellation.
 - Recent in-memory history shows ten entries; the SQLite database retains history until cleared.
 - The existing TelemetryDeck project is retained. App-defined signals contain categories and outcomes, not correction text or credentials. Tests skip telemetry initialization.
@@ -77,6 +78,6 @@ make preflight-dmg
 bash scripts/validate_release.sh v1.3.7
 ```
 
-Deployment signs and verifies before replacing the installed app. It preserves onboarding and shortcuts. Use `TypoFixrDev` for local deployments to keep a stable signing identity; Developer ID signing and notarization are separate distribution steps. Xcode is selected by the Makefile because Command Line Tools alone do not supply XCTest. Swift 6 toolchains need `--enable-xctest` for this suite.
+Deployment signs and verifies before replacing the installed app. It preserves onboarding and shortcuts. Use `TypoFixrDev` for development copies. Use the existing Developer ID for distribution builds; do not replace a working Developer ID app with a development identity. Stage safely using an explicit `APP_BUNDLE` and `LAUNCH_AFTER_DEPLOY=0`, which skips stopping/launching apps. Run signing jobs serially. Xcode is selected by the Makefile because Command Line Tools alone do not supply XCTest. Swift 6 toolchains need `--enable-xctest` for this suite.
 
 See `RELEASING.md` for the release workflow, required secret names, and version checks. Do not claim Codex or another named editor passed merely because a synthetic native/WebKit test passed.

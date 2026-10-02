@@ -4,6 +4,7 @@ export DEVELOPER_DIR
 
 CERT_NAME   := TypoFixrDev
 CODE_SIGN_FLAGS :=
+LAUNCH_AFTER_DEPLOY := 1
 APP_BUNDLE  := $(HOME)/Applications/TypoFixr.app
 APP_BINARY  := $(APP_BUNDLE)/Contents/MacOS/TypoFixr
 APP_DOMAIN  := com.typofixr.app
@@ -27,14 +28,14 @@ deploy:
 	@echo "==> Signing with $(CERT_NAME)..."
 	codesign --force --deep $(CODE_SIGN_FLAGS) --sign "$(CERT_NAME)" "$(XCODE_RELEASE_APP)"
 	codesign --verify --deep --strict "$(XCODE_RELEASE_APP)"
-	@echo "==> Stopping running instance..."
-	pkill -f "$(APP_BINARY)" || true
-	sleep 0.5
+	@if [ "$(LAUNCH_AFTER_DEPLOY)" = "1" ]; then \
+		pkill -f "$(APP_BINARY)" || true; \
+		sleep 0.5; \
+	fi
 	@echo "==> Installing app bundle..."
 	mkdir -p $$(dirname "$(APP_BUNDLE)")
 	ditto "$(XCODE_RELEASE_APP)" "$(APP_BUNDLE)"
-	@echo "==> Launching..."
-	open "$(APP_BUNDLE)"
+	@if [ "$(LAUNCH_AFTER_DEPLOY)" = "1" ]; then open "$(APP_BUNDLE)"; fi
 	@echo "Done. Preferences preserved. Accessibility access depends on the signing identity."
 
 preflight-dmg:

@@ -1,36 +1,54 @@
 import SwiftUI
 import ServiceManagement
 
+enum SettingsSection: String, Hashable {
+    case general, shortcut, api, privacy, about
+
+    func open() {
+        NotificationCenter.default.post(name: NSNotification.Name("ShowSettings"), object: rawValue)
+    }
+}
+
 struct SettingsView: View {
     @EnvironmentObject var appState: AppState
-    
+    @State private var selection: SettingsSection
+
+    init(initialSection: SettingsSection = .general) {
+        _selection = State(initialValue: initialSection)
+    }
+
     var body: some View {
-        TabView {
+        TabView(selection: $selection) {
             GeneralSettingsView()
+                .tag(SettingsSection.general)
                 .environmentObject(appState)
                 .tabItem {
                     Label("General", systemImage: "gear")
                 }
             
             ShortcutSettingsView()
+                .tag(SettingsSection.shortcut)
                 .environmentObject(appState)
                 .tabItem {
                     Label("Shortcut", systemImage: "keyboard")
                 }
             
             APISettingsView()
+                .tag(SettingsSection.api)
                 .environmentObject(appState)
                 .tabItem {
-                    Label("API", systemImage: "key")
+                    Label("API Key", systemImage: "key")
                 }
             
             SecurityPrivacySettingsView()
+                .tag(SettingsSection.privacy)
                 .environmentObject(appState)
                 .tabItem {
-                    Label("Security", systemImage: "lock.shield")
+                    Label("Privacy", systemImage: "lock.shield")
                 }
             
             AboutView()
+                .tag(SettingsSection.about)
                 .tabItem {
                     Label("About", systemImage: "info.circle")
                 }
@@ -44,17 +62,22 @@ struct SettingsView: View {
 struct GeneralSettingsView: View {
     @EnvironmentObject var appState: AppState
     @State private var launchAtLogin = false
+    @State private var launchAtLoginError: String?
     
     var body: some View {
         Form {
             Section {
-                Toggle("Launch at Login", isOn: $launchAtLogin)
-                    .onChange(of: launchAtLogin) { newValue in
-                        setLaunchAtLogin(newValue)
-                    }
-                    .onAppear {
-                        launchAtLogin = getLaunchAtLogin()
-                    }
+                Toggle("Launch at login", isOn: Binding(
+                    get: { launchAtLogin }, set: { setLaunchAtLogin($0) }
+                ))
+                .onAppear { launchAtLogin = getLaunchAtLogin() }
+                Text("Keep TypoFixr ready in the menu bar when you sign in.")
+                    .font(.caption).foregroundColor(.secondary)
+                if let launchAtLoginError {
+                    Text(launchAtLoginError).font(.caption).foregroundColor(.orange)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Button("Open Login Items…") { SMAppService.openSystemSettingsLoginItems() }
+                }
             }
             
             Section {
@@ -69,7 +92,7 @@ struct GeneralSettingsView: View {
                     } else {
                         Image(systemName: "exclamationmark.triangle.fill")
                             .foregroundColor(.orange)
-                        Button("Grant Access") {
+                        Button("Open Settings…") {
                             AppHelpers.requestAccessibilityPermission(source: .settings)
                         }
                     }
@@ -81,15 +104,20 @@ struct GeneralSettingsView: View {
     }
     
     private func setLaunchAtLogin(_ enabled: Bool) {
+        launchAtLoginError = nil
         do {
             if enabled {
                 try SMAppService.mainApp.register()
             } else {
                 try SMAppService.mainApp.unregister()
             }
+            if SMAppService.mainApp.status == .requiresApproval {
+                launchAtLoginError = "Allow TypoFixr in Login Items to finish enabling launch at login."
+            }
         } catch {
-            // Silent failure - user will see toggle doesn't stick
+            launchAtLoginError = "Couldn’t change launch at login. " + error.localizedDescription
         }
+        launchAtLogin = getLaunchAtLogin()
     }
 
     private func getLaunchAtLogin() -> Bool {
@@ -120,20 +148,19 @@ struct ShortcutSettingsView: View {
                             isRecording: $isRecording,
                             errorMessage: $errorMessage
                         )
-                        .frame(width: 150)
-                        
-                        if isRecording {
-                            Text("Press keys...")
-                                .foregroundColor(.secondary)
-                        }
+                        .frame(width: 180)
                         
                         Spacer()
                         
                         Button("Reset to Default") {
                             appState.keyboardShortcut = .defaultConfig
                         }
-                        .disabled(isRecording)
+                        .disabled(isRecording || appState.keyboardShortcut == .defaultConfig)
                     }
+
+                    Text(isRecording ? "Press a shortcut. Esc cancels; clicking again stops recording." : "Click the shortcut to change it.")
+                        .font(.caption).foregroundColor(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
 
                     if let error = errorMessage {
                         Text(error)
@@ -166,7 +193,7 @@ struct ShortcutRecorderView: View {
         Button(action: { startRecording() }) {
             HStack {
                 if isRecording {
-                    Text("Press shortcut... (Esc to cancel)")
+                    Text("Press shortcut…")
                         .foregroundColor(.secondary)
                 } else {
                     Text(config.displayString)
@@ -184,6 +211,8 @@ struct ShortcutRecorderView: View {
             )
         }
         .buttonStyle(.plain)
+        .accessibilityLabel(isRecording ? "Recording shortcut" : "Change keyboard shortcut")
+        .help(isRecording ? "Press a shortcut, or Escape to cancel" : "Click to record a keyboard shortcut")
         .onDisappear {
             stopRecording()
         }
@@ -276,7 +305,7 @@ struct APISettingsView: View {
         case .invalidFormat:
             return "Paste the full key from console.groq.com/keys, including the prefix."
         case .valid:
-            return "API key configured"
+            return "Key format looks valid. Changes are saved automatically."
         }
     }
 
@@ -287,7 +316,7 @@ struct APISettingsView: View {
                     Text("Groq API Key")
                         .font(.headline)
 
-                    Text("Required to use TypoFixr. Paste the full key from console.groq.com/keys. Corrections run on Groq-hosted OpenAI GPT-OSS 20B.")
+                    Text("Paste your full Groq key to enable corrections. It is saved in Keychain on this Mac.")
                         .font(.caption)
                         .foregroundColor(.secondary)
 
@@ -304,6 +333,8 @@ struct APISettingsView: View {
                             Image(systemName: showAPIKey ? "eye.slash" : "eye")
                         }
                         .buttonStyle(.borderless)
+                        .help(showAPIKey ? "Hide API key" : "Show API key")
+                        .accessibilityLabel(showAPIKey ? "Hide API key" : "Show API key")
                     }
 
                     InlineValidationRow(
@@ -335,7 +366,7 @@ struct SecurityPrivacySettingsView: View {
         Form {
             Section {
                 VStack(alignment: .leading, spacing: 12) {
-                    Text("TypoFixr stores correction history locally on this Mac so recent fixes can appear in the menu bar and be reverted when needed.")
+                    Text("Original and corrected text are saved on this Mac. Open a recent correction to review or copy the full text.")
                         .font(.caption)
                         .foregroundColor(.secondary)
 
@@ -369,7 +400,7 @@ struct SecurityPrivacySettingsView: View {
                     HStack(spacing: 8) {
                         Image(systemName: "info.circle")
                             .foregroundColor(.blue)
-                        Text("Your text is sent to Groq-hosted OpenAI GPT-OSS 20B for processing")
+                        Text("Your selected text is sent directly to Groq for correction.")
                             .font(.caption)
                     }
                     
@@ -402,7 +433,7 @@ struct AboutView: View {
             Text("TypoFixr")
                 .font(.system(size: 28, weight: .semibold, design: .rounded))
             
-            Text("Version \(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.0.0")")
+            Text("Version \(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.0.0") (\(Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "1"))")
                 .font(.caption)
                 .foregroundColor(.secondary)
             
@@ -421,11 +452,10 @@ struct AboutView: View {
             Spacer()
             
             VStack(spacing: 8) {
-                if let url = URL(string: "https://typofixr.com/privacy") {
-                    Link("Privacy Policy", destination: url)
-                }
-                if let url = URL(string: "https://typofixr.com/terms") {
-                    Link("Terms of Service", destination: url)
+                Button("Privacy & data…") { SettingsSection.privacy.open() }
+                    .buttonStyle(.borderless)
+                if let url = URL(string: "https://github.com/kdelmotte/TypoFixr") {
+                    Link("Source & releases", destination: url)
                 }
             }
             .font(.caption)

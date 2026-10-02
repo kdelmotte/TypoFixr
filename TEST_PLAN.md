@@ -4,9 +4,10 @@ This document defines acceptance criteria, not a claim that every listed app or 
 
 ## 1.3.7 verification record
 
-- Automated suite: 243 tests passed in both Swift Package Manager and the Xcode app test host during release preparation. The suite uses isolated settings, an in-memory database, in-memory credentials, and named test pasteboards.
-- Release artifact: the universal 1.3.7 (build 3) app and DMG passed Developer ID signature, Apple notarization, stapling, and Gatekeeper checks. The mounted DMG contains the expected `com.typofixr.app` binary and Applications link.
-- Local deployment: `make build` passed; `make deploy` built and signed successfully, but macOS blocked replacing the existing `/Applications` copy. Finder installation and live permission recovery require confirmation.
+- Automated suite: 250 tests passed in both Swift Package Manager and the Xcode app test host during release preparation. The suite uses isolated settings, an in-memory database, in-memory credentials, and named test pasteboards.
+- Release artifact: the universal 1.3.7 (build 4) app and DMG passed Developer ID signature, Apple notarization, stapling, and Gatekeeper checks. The mounted DMG contains the expected `com.typofixr.app` binary and Applications link.
+- Local deployment: `make build` and `make deploy` passed. Build 4 is staged separately with Developer ID signing and `LAUNCH_AFTER_DEPLOY=0`; the working `/Applications` app stays running. The user confirmed build 3 works after Finder installation. Build 4 installation and live UI interaction still need confirmation.
+- UI validation: light/dark previews reviewed for loading/success/error HUDs, empty/history/permission menus, correction details, all Settings tabs, and onboarding. Tests cover wrapping, reused HUD sizing, nonactivating/click-through panel behavior, message duration, and menu bounds.
 - Legacy credential compatibility: an isolated temporary macOS Keychain confirmed that an exact empty-service query finds a record originally saved without a service. Only dummy test data was used.
 - Live clipboard checks: explicit selection and cursor-based paragraph fallback passed in separate AppKit and WebKit test editors, with AX selection metadata deliberately unavailable. All four cases restored the original clipboard.
 - A direct Codex shortcut/API/undo run has not been recorded. The test editors do not establish compatibility with every application below.
@@ -16,6 +17,9 @@ This document defines acceptance criteria, not a claim that every listed app or 
 
 | Scenario | Expected behavior | Automated coverage |
 | --- | --- | --- |
+| HUD captions and longer errors | Full text wraps within a measured panel; no keyboard focus is taken | `UILayoutTests` |
+| Long menu content or smaller screens | Popover height is bounded and content can scroll | `UILayoutTests` |
+| New correction timestamp | “Just now” for recent entries and small clock skew | `CorrectionTests` |
 | Missing status symbol | All six menu-bar states still render visible template pixels | `MenuBarIconTests` |
 | Upgrade with saved onboarding but missing permission/key | Resume the missing step; keep saved settings and key | `OnboardingFlowTests`, `AppStateTests` |
 | Permission granted/revoked after launch | Refresh state, clear stale permission error, preserve other errors | `AppStateTests` |
@@ -96,7 +100,7 @@ Repeat the capture, fallback, replacement, clipboard, and undo checks in the act
 | ID | Test Case | Input | Expected Output |
 |----|-----------|-------|-----------------|
 | TC-3.2.1 | History stores corrections | Make 3 corrections | All 3 appear in menu dropdown |
-| TC-3.2.3 | History limit respected | Make 15 corrections | Latest 10 shown in recent history; database retains all until cleared |
+| TC-3.2.3 | History limit respected | Make 15 corrections | Latest 3 previewed in the menu; database retains all until cleared |
 | TC-3.2.4 | History persists across sessions | Make corrections, quit, relaunch | History still visible |
 
 ### 3.3 System Undo Compatibility
@@ -141,15 +145,27 @@ Repeat the capture, fallback, replacement, clipboard, and undo checks in the act
 |----|-----------|-------|-----------------|
 | TC-5.2.1 | Menu opens | Click menu bar icon | Dropdown appears |
 | TC-5.2.2 | History displayed | Have 3 corrections | All 3 shown with original → fixed |
-| TC-5.2.3 | History truncated | Correction with 200 chars | Shown truncated with "..." |
+| TC-5.2.3 | History preview and full text | Correction with 200 chars | Preview shows a chevron; click to read full original/corrected text and copy it |
 | TC-5.2.4 | Settings accessible | Click "Settings" | Settings window opens |
 | TC-5.2.5 | Quit works | Click "Quit" | App terminates |
+| TC-5.2.6 | Clear history | Choose Clear History… | Confirmation explains all history and usage counts; Cancel preserves data |
+| TC-5.2.7 | Setup actions | Missing access or API key | Open Accessibility Settings or the API Key tab directly |
+| TC-5.2.8 | Long menu | Long errors/history on a small screen | Content scrolls; Settings and Quit remain reachable |
 
 ### 5.3 Settings Window
 | ID | Test Case | Input | Expected Output |
 |----|-----------|-------|-----------------|
 | TC-5.3.1 | Shortcut field works | Click and press new shortcut | Shortcut captured and saved |
 | TC-5.3.2 | Settings persist | Change settings, quit, relaunch | Settings retained |
+
+---
+
+### 5.4 Correction HUD
+| ID | Test Case | Input | Expected Output |
+|----|-----------|-------|-----------------|
+| TC-5.4.1 | Checking and success copy | Correct text in another app | Both subtitles are readable in full; TypoFixr does not take focus |
+| TC-5.4.2 | Longer errors | Show a multi-sentence error | Text wraps without clipping; display lasts 5–10 seconds |
+| TC-5.4.3 | Rapid consecutive feedback | Start another correction as the last HUD fades | An older dismissal cannot hide the new HUD |
 
 ---
 

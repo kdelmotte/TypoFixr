@@ -11,7 +11,7 @@ struct CorrectionFeedback {
 
     static let live = CorrectionFeedback(
         message: { HUDService.shared.show(title: $0, subtitle: $1, isSuccess: $2) },
-        loading: { HUDService.shared.showLoading(title: "Fixing...", subtitle: "Checking your text") },
+        loading: { HUDService.shared.showLoading(title: "Checking text…", subtitle: "Keep your selection in place.") },
         confirmSensitive: { title, message in
             let alert = NSAlert()
             alert.messageText = title

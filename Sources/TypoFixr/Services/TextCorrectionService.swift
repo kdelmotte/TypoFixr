@@ -110,7 +110,7 @@ final class TextCorrectionService {
             appState.addCorrection(Correction(originalText: text, correctedText: corrected,
                 appBundleId: selection.appBundleID, inputTokens: result.inputTokens, outputTokens: result.outputTokens))
             appState.setIconState(.success, autoReset: true)
-            feedback.message("Fixed!", "⌘Z to undo", true)
+            feedback.message("Fixed", "Press ⌘Z to undo.", true)
             TelemetryService.shared.track(.correctionSucceeded(selectionSource: selection.source))
         } catch is CancellationError {
             appState.setIconState(.normal)
@@ -144,7 +144,7 @@ final class TextCorrectionService {
                       reason: CorrectionFailureReason, source: SelectionSource? = nil) {
         appState.lastError = message
         appState.setIconState(state, autoReset: state == .error)
-        feedback.message("Correction Stopped", message, false)
+        feedback.message("Correction stopped", message, false)
         TelemetryService.shared.track(.correctionFailed(reason: reason, selectionSource: source))
     }
 

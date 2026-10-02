@@ -4,7 +4,7 @@ Use `kdelmotte/TypoFixr`, its existing app identity `com.typofixr.app`, and the 
 
 ## Version and verification
 
-Update the version/build in `Sources/TypoFixr/Info.plist` and every Xcode app/test configuration. Version 1.3.7 uses build 3. Add notes at `docs/releases/v<version>.md`, update the README changelog and test plan, and run:
+Update the version/build in `Sources/TypoFixr/Info.plist` and every Xcode app/test configuration. Version 1.3.7 uses build 4. Add notes at `docs/releases/v<version>.md`, update the README changelog and test plan, and run:
 
 ```bash
 bash scripts/validate_release.sh v1.3.7
@@ -20,6 +20,16 @@ make deploy APP_BUNDLE=/Applications/TypoFixr.app \
   CERT_NAME="Developer ID Application: <name> (<team>)" \
   CODE_SIGN_FLAGS="--options runtime --timestamp"
 ```
+
+To prepare an installer while leaving the working app running, deploy to a separate staging folder and disable launch:
+
+```bash
+make deploy APP_BUNDLE="$PWD/.build/distribution/TypoFixr.app" \
+  CERT_NAME="Developer ID Application: <name> (<team>)" \
+  CODE_SIGN_FLAGS="--options runtime --timestamp" LAUNCH_AFTER_DEPLOY=0
+```
+
+`LAUNCH_AFTER_DEPLOY=0` skips both stopping and launching the app. Run signing jobs serially; an interrupted codesign process can leave a `.cstemp` file in its build product. Confirm the process has stopped before removing that temporary build file and retrying. If macOS requires Keychain approval, approve it locally. If macOS blocks replacing an app in `/Applications`, use Finder to install the verified DMG.
 
 A change of signing identity can require the user to reauthorize Accessibility even if the old entry is enabled. Never reset the user’s permissions or preferences to hide that mismatch. The app should reopen the missing setup step and display a visible permission icon.
 

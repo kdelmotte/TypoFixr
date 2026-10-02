@@ -8,44 +8,47 @@ struct HUDView: View {
     var isLoading: Bool = false
 
     var body: some View {
-        HStack(spacing: 12) {
-            // Icon or spinner
-            if isLoading {
-                ProgressView()
-                    .controlSize(.small)
-                    .frame(width: 24, height: 24)
-            } else {
-                Image(systemName: icon)
-                    .font(.system(size: 24, weight: .semibold))
-                    .foregroundColor(isSuccess ? .green : .red)
+        HStack(alignment: .center, spacing: 12) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 10)
+                    .fill((isLoading ? Color.accentColor : isSuccess ? .green : .orange).opacity(0.12))
+                if isLoading {
+                    ProgressView()
+                        .controlSize(.small)
+                } else {
+                    Image(systemName: icon)
+                        .font(.system(size: 21, weight: .semibold))
+                        .foregroundColor(isSuccess ? .green : .orange)
+                }
             }
-            
-            // Text content
-            VStack(alignment: .leading, spacing: 2) {
+            .frame(width: 36, height: 36)
+            .accessibilityHidden(true)
+
+            VStack(alignment: .leading, spacing: 4) {
                 Text(title)
                     .font(.system(size: 14, weight: .semibold))
                     .foregroundColor(.primary)
-                
+                    .fixedSize(horizontal: false, vertical: true)
                 Text(subtitle)
-                    .font(.system(size: 12))
+                    .font(.system(size: 13))
                     .foregroundColor(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .layoutPriority(1)
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 12)
-        .background(
-            VisualEffectBlur(material: .hudWindow, blendingMode: .behindWindow)
-        )
-        .cornerRadius(12)
-        .shadow(color: .black.opacity(0.2), radius: 8, x: 0, y: 4)
+        .padding(16)
+        .background(VisualEffectBlur(material: .hudWindow, blendingMode: .behindWindow))
+        .clipShape(RoundedRectangle(cornerRadius: 14))
+        .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(Color.primary.opacity(0.1), lineWidth: 1))
+        .accessibilityElement(children: .combine)
     }
 }
 
-// MARK: - Visual Effect Blur for macOS
 struct VisualEffectBlur: NSViewRepresentable {
     let material: NSVisualEffectView.Material
     let blendingMode: NSVisualEffectView.BlendingMode
-    
+
     func makeNSView(context: Context) -> NSVisualEffectView {
         let view = NSVisualEffectView()
         view.material = material
@@ -53,49 +56,9 @@ struct VisualEffectBlur: NSViewRepresentable {
         view.state = .active
         return view
     }
-    
+
     func updateNSView(_ nsView: NSVisualEffectView, context: Context) {
         nsView.material = material
         nsView.blendingMode = blendingMode
     }
 }
-
-// MARK: - Preview
-#if DEBUG
-struct HUDView_Previews: PreviewProvider {
-    static var previews: some View {
-        VStack(spacing: 20) {
-            HUDView(
-                icon: "checkmark.circle.fill",
-                title: "Fixed!",
-                subtitle: "⌘Z to undo",
-                isSuccess: true
-            )
-
-            HUDView(
-                icon: "checkmark.circle.fill",
-                title: "No Changes",
-                subtitle: "Your text looks good!",
-                isSuccess: true
-            )
-
-            HUDView(
-                icon: "xmark.circle.fill",
-                title: "Error",
-                subtitle: "Could not replace text",
-                isSuccess: false
-            )
-
-            HUDView(
-                icon: "",
-                title: "Fixing...",
-                subtitle: "Checking your text",
-                isSuccess: true,
-                isLoading: true
-            )
-        }
-        .padding(40)
-        .background(Color.gray.opacity(0.3))
-    }
-}
-#endif
